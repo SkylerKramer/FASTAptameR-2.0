@@ -1,0 +1,10 @@
+Module,Input.Files,Output.Files
+FASTAptameR-Count,Preprocessed FASTQ/A,FASTA or CSV
+FASTAptameR-Translate,Counted FASTA,FASTA or CSV
+FASTAptameR-Motif_Search,Counted FASTA,FASTA or CSV
+FASTAptameR-Motif_Tracker,2 or 3 counted FASTAs,CSV
+FASTAptameR-Distance,Counted FASTA,CSV
+FASTAptameR-Enrich,2 or 3 counted FASTAs,CSV
+FASTAptameR-Cluster,Counted FASTA,FASTA or CSV
+FASTAptameR-Cluster_Diversity,Clustered FASTA,CSV
+FASTAptameR-Cluster_Enrich,2 or 3 cluster-analysis CSVs,CSV
