@@ -1,5 +1,0 @@
-File.Names,Unique.Reads,Total.Reads,Seqs.With.Motif,Seqs.RPM,Motif.Occurrences,Motif.RPM
-70HRT14-count.fasta,72921,2160216,1138044,526819.54,1138044,526819.54
-70HRT15-count.fasta,62444,1987867,998422,502257.95,998422,502257.95
-""
-"Enrichment (populations 2:1): 0.953"
