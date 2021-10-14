@@ -2,6 +2,9 @@
 
 ##### imports ####
 library(dplyr)
+library(purrr)
+library(ggplot2)
+library(plotly)
 
 ##### support functions #####
 fa_formatInput <- function(fastaInput = NULL, population = NULL){
@@ -70,33 +73,75 @@ fa_translate_converge <- function(translateDF = NULL){
   # return 'id' and 'seqs'
   return(translateDF[,c(5,1)])
 }
-fa_enrich_merge <- function(countData1 = NULL, countData2 = NULL, countData3 = NULL, removeNA = T){
-  # merge at least two counted files - and optionally a third counted file - by 'seqs'
-  countMerge <- merge(countData1, countData2, by = 'seqs', all = T)
-  if(!is.null(countData3)){
-    countMerge <- merge(countMerge, countData3, by = 'seqs', all = T)
-  }
-  
-  # optionally keep na values
-  if(removeNA){
-    countMerge <- na.omit(countMerge)
-  }
-
-  # enrichment and log2(E) (the fold change): y to x
-  countMerge$enrichment_yx <- round(countMerge$RPM.y / countMerge$RPM.x, 3)
-  countMerge$log2_E_yx <- round(log2(countMerge$RPM.y / countMerge$RPM.x), 3)
-  
-  #  enrichment and log2(E) (the fold change): z to y, z to x
-  if(!is.null(countData3)){
-    countMerge$enrichment_zy <- round(countMerge$RPM.z / countMerge$RPM.y, 3)
-    countMerge$log2_E_zy <- round(log2(countMerge$RPM.z / countMerge$RPM.y), 3)
+fa_translate_mapping <- function(inputChanges = "", translateSelection = "Standard"){
+  # convert user input into a usable format
+  translationDF_changed <- inputChanges %>% # input string should have 1 codon / translation pair per newline, separated by commas
+    gsub("[[:punct:]]", ",", .) %>% # replace all special characters with comma
+    gsub(",{2,}", ",", .) %>% # replace consecutive commas with a single one
+    gsub(" | \t", "", .) %>% # omit spaces and tabs
+    gsub("\\(|\\)", "", .) %>% # omit parentheses
+    toupper() %>% # convert all alphabetic characters to uppercase
+    strsplit("\n") %>% # split by newline
+    unlist() %>% # unlist
+    as.data.frame() %>% # convert to data.frame; 1 pair per row
     
-    countMerge$enrichment_zx <- round(countMerge$RPM.z / countMerge$RPM.x, 3)
-    countMerge$log2_E_zx <- round(log2(countMerge$RPM.z / countMerge$RPM.x), 3)
+    tidyr::separate(., ., c("Codon", "Translation"), ",") %>% # split into multiple columns
+    tidyr::drop_na() %>% # drop missing values
+    dplyr::mutate(., Codon = gsub("T", "U", Codon)) %>% # replace T with U in Codon column
+    dplyr::filter(., nchar(Codon) == 3) %>% # remove codons that are not 3 characters long
+    dplyr::filter(., nchar(Translation) == 1) %>% # remove translations that are not 1 characters long
+    
+    dplyr::mutate(., Codon = as.character(Codon), Translation = as.character(Translation)) # confirm both columns are characters
+  
+  # select appropriate filepath for JSON file
+  filepath <- switch(
+    selection,
+    "Standard" = "trans/translations_standard.json",
+    "Vertebrate mitochondrial" = "trans/translations_vertMito.json",
+    "Yeast mitochondrial" = "trans/translations_yeastMito.json",
+    "Mold, protozoan, and coelenterate mitochondrial + Mycoplasma / Spiroplasma" = "trans/translations_mold.json",
+    "Invertebrate mitochondrial" = "trans/translations_invertMito.json",
+    "Ciliate, dasycladacean and Hexamita nuclear" = "trans/translations_cilNucl.json",
+    "Echinoderm and flatworm mitochondrial" = "trans/translations_echinoMito.json",
+    "Euplotid nuclear" = "trans/translations_euplotidNucl.json",
+    "Alternative yeast nuclear" = "trans/translations_altYeastNucl.json",
+    "Ascidian mitochondrial" = "trans/translations_ascMito.json",
+    "Alternative flatworm mitochondrial" = "trans/translations_altWormMito.json",
+    "Blepharisma nuclear" = "trans/translations_blephNucl.json",
+    "Chlorophycean mitochondrial" = "trans/translations_chloroMito.json",
+    "Trematode mitochondrial" = "trans/translations_tremMito.json",
+    "Scenedesmus obliquus mitochondrial" = "trans/translations_sceneMito.json",
+    "Pterobranchia mitochondrial" = "trans/translations_pteroMito.json"
+  )
+  
+  # read JSON file with standard genetic code
+  translationDF <- jsonlite::fromJSON(filepath) %>% # read JSON file with translation mappings
+    dplyr::mutate(., Codon = as.character(Codon), Translation = as.character(Translation)) # confirm both columns are characters
+  
+  # if input codons and translations are each of length 0, return unmodified data.frame
+  if(nrow(translationDF_changed) == 0){
+    message("No changes to translation mapping!")
+    return(translationDF)
   }
   
-  # return merged file with fold changes and enrichment scores
-  return(countMerge)
+  # iterate through dataframe of changes
+  for(i in 1:nrow(translationDF_changed)){
+    
+    # if codon of interest already exists in dataframe, replace the translation
+    if(translationDF_changed$Codon[i] %in% translationDF$Codon){
+      translationDF[which(translationDF$Codon == translationDF_changed$Codon[i]),2] <- translationDF_changed$Translation[i]
+    } else{
+      
+      # else, append to the data.frame
+      translationDF <- rbind(
+        data.frame(Codon = translationDF_changed$Codon[i], Translation = translationDF_changed$Translation[i], stringsAsFactors = FALSE),
+        translationDF
+      )
+    }
+  }
+  
+  # return modified mappings
+  return(translationDF)
 }
 fa_motif_format <- function(motifList = NULL, motifType = "Nucleotide"){
   # format motif(s) as a Perl query
@@ -145,15 +190,19 @@ fa_count_rpr <- function(countData = NULL, minReads = NULL, maxRanks = NULL){
 }
 fa_count_histogram <- function(countData = NULL){
   # make histogram of sequence lengths
-  p1 <- ggplot2::ggplot(countData, ggplot2::aes(Length)) + ggplot2::geom_bar(fill = "blue") +
+  p1 <- ggplot2::ggplot(countData, ggplot2::aes(Length)) +
+    ggplot2::geom_bar(fill = "skyblue", colour = "black") +
+    ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1) +
     ggplot2::xlab("Sequence length") + ggplot2::ylab("Number of unique sequences") +
     ggplot2::theme_bw() + ggplot2::theme(text = ggplot2::element_text(size = 15))
   
   p2 <- countData %>%
     dplyr::group_by(Length) %>%
     dplyr::summarise(TotalReads = sum(Reads)) %>%
+    
     ggplot2::ggplot(ggplot2::aes(x = Length, y = TotalReads)) +
-    ggplot2::geom_bar(stat = "identity", fill = "blue") +
+    ggplot2::geom_bar(stat = "identity", fill = "skyblue", colour = "black") +
+    ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1) +
     ggplot2::xlab("Sequence length") + ggplot2::ylab("Total number of reads") +
     ggplot2::theme_bw() + ggplot2::theme(text = ggplot2::element_text(size = 15))
   
@@ -161,9 +210,169 @@ fa_count_histogram <- function(countData = NULL){
   return(plotly::subplot(plotly::ggplotly(p1), plotly::ggplotly(p2), titleY = T, titleX = T, nrows = 2, margin = 0.1) %>%
     plotly::layout(title = "Sequence-Length Histogram", showlegend = F, height = 600, margin = list(t = 50)))
 }
+fa_count_binnedAbundance <- function(countData = NULL, useSingleton = TRUE, breaks = c(10,100,1000)){
+  
+  # initialize breaks if not specified by user
+  if(length(breaks) == 1){
+    if(breaks == ""){
+      breaks <- c(10,100,1000)
+    }
+  }
+  
+  # remove breaks outside of the range of the data
+  breaks <- breaks[breaks > min(countData$Reads) & breaks < max(countData$Reads)]
+  
+  # add min and max read values to breaks vector, sort, filter for unique values
+  breaks_mod <- c(0, breaks, max(countData$Reads)) %>% sort() %>% unique()
+  
+  # get vector of labels for cut
+  labelNames <- vector()
+  for(i in 2:length(breaks_mod)){
+    if(i == 2 & useSingleton){
+      labelNames[i-1] <- paste0("1 < Reads < ", breaks_mod[i])
+    } else{
+      labelNames[i-1] <- paste0(breaks_mod[i-1], " <= Reads < ", breaks_mod[i])
+    }
+  }
+  
+  # get vector for factor labels
+  if(useSingleton){
+    factorNames <- c("Singleton", labelNames)
+  } else{
+    factorNames <- labelNames
+  }
+  
+  # label reads by break points
+  countData_formatted <- countData %>%
+    dplyr::mutate(BinnedReads = as.character(cut(Reads, breaks = breaks_mod, labels = labelNames, right = TRUE))) %>%
+    dplyr::mutate(
+      BinnedReads = dplyr::case_when(
+        useSingleton & Reads == 1 ~ "Singleton",
+        TRUE ~ BinnedReads
+      )
+    ) %>%
+    
+    # group by bins, count number of unique sequences per bin, and count number of reads per bin
+    dplyr::group_by(BinnedReads) %>%
+    dplyr::summarise(
+      n = dplyr::n(),
+      TotalReads = sum(Reads)
+    ) %>%
+    
+    # get fraction of reads in each bin; sort by fraction
+    dplyr::mutate(Fraction = round(TotalReads / sum(TotalReads), 2)) %>%
+    dplyr::arrange(desc(Fraction)) %>%
+    
+    # reorder bin levels
+    dplyr::mutate(BinnedReads = factor(BinnedReads, levels = factorNames))
+  
+  # make barplot
+  p <- ggplot2::ggplot(countData_formatted, ggplot2::aes(BinnedReads, Fraction, fill = n)) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::scale_fill_gradient(low = "skyblue", high = "salmon") +
+    ggplot2::labs(x = "No. Reads", y = "Fraction of Population",
+                  fill = "No. Unique\nSequences",
+                  title = "Binned Sequence Abundance") +
+    ggplot2::theme_bw() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+  
+  # return interactive figure
+  return(plotly::ggplotly(p, height = 600))
+}
+fa_motif_motifTrackerPlot <- function(targetDF = NULL){
+  # make base plot
+  if("Alias" %in% colnames(targetDF)){
+    p <- ggplot2::ggplot(targetDF, ggplot2::aes(
+      Population, TotalRPM,
+      colour = Alias,
+      text = glue::glue(
+        "
+      Population: {Population}
+      File Name: {FileName}
+      Alias: {Alias}
+      Motif: {Motif}
+      Total Reads: {TotalReads}
+      Total RPM: {TotalRPM}
+      "
+      )
+    ))
+  } else{
+    p <- ggplot2::ggplot(targetDF, ggplot2::aes(
+      Population, TotalRPM,
+      colour = Motif,
+      text = glue::glue(
+        "
+      Population: {Population}
+      File Name: {FileName}
+      Motif: {Motif}
+      Total Reads: {TotalReads}
+      Total RPM: {TotalRPM}
+      "
+      )
+    ))
+  }
+  
+  # create line plot
+  p <- p +
+    ggplot2::geom_line(group = 1, size = 1) +
+    ggplot2::geom_point(size = 5) +
+    ggplot2::scale_x_continuous(breaks = unique(targetDF$Population)) +
+    ggplot2::labs(x = "Population", y = "Total RPM", title = "Motif Tracker") +
+    ggplot2::theme_classic()
+  
+  # return interactive figure
+  return(plotly::ggplotly(p, height = 500, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2)))
+}
+fa_motif_sequenceTrackerPlot <- function(targetDF = NULL){
+  # make base plot
+  if("Alias" %in% colnames(targetDF)){
+    p <- ggplot2::ggplot(targetDF, ggplot2::aes(
+      Population, RPM,
+      colour = Alias,
+      text = glue::glue(
+        "
+      Population: {Population}
+      File Name: {FileName}
+      Alias: {Alias}
+      Sequence: {seqs}
+      Rank: {Rank}
+      Reads: {Reads}
+      RPM: {RPM}
+      "
+      )
+    ))
+  } else{
+    p <- ggplot2::ggplot(targetDF, ggplot2::aes(
+      Population, RPM,
+      colour = seqs,
+      text = glue::glue(
+        "
+      Population: {Population}
+      File Name: {FileName}
+      Sequence: {seqs}
+      Rank: {Rank}
+      Reads: {Reads}
+      RPM: {RPM}
+      "
+      )
+    ))
+  }
+  
+  # make line plot
+  p <- p +
+    ggplot2::geom_line(group = 1, size = 1) +
+    ggplot2::geom_point(size = 5) +
+    ggplot2::scale_x_continuous(breaks = unique(targetDF$Population)) +
+    ggplot2::labs(x = "Population", y = "RPM", title = "Sequence Tracker") +
+    ggplot2::theme_classic()
+  
+  # return interactive figure
+  return(plotly::ggplotly(p, height = 500, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2)))
+}
 fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
   # distance histogram with unique sequences
-  p1 <- ggplot2::ggplot(distanceData, ggplot2::aes(Distance)) + ggplot2::geom_bar(fill = "blue") +
+  p1 <- ggplot2::ggplot(distanceData, ggplot2::aes(Distance)) +
+    ggplot2::geom_bar(fill = "skyblue", colour = "black") +
     ggplot2::xlab("Distance") + ggplot2::ylab("Number of unique sequences") +
     ggplot2::theme_bw() + ggplot2::theme(text = ggplot2::element_text(size = 15))
   
@@ -172,112 +381,450 @@ fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
     plotly::add_text(x = mean(distanceData$Distance), y = max(ggplot2::ggplot_build(p1)$data[[1]]$ymax),
                      text = querySequence, textfont = list(size = 12))
   
-  # distance histogram with total reads
-  p2 <- distanceData %>%
-    dplyr::group_by(Distance) %>%
-    dplyr::summarise(TotalReads = sum(Reads)) %>%
-    ggplot2::ggplot(ggplot2::aes(x = Distance, y = TotalReads)) +
-    ggplot2::geom_bar(stat = "identity", fill = "blue") +
-    ggplot2::xlab("Distance") + ggplot2::ylab("Total number of reads") +
-    ggplot2::theme_bw() + ggplot2::theme(text = ggplot2::element_text(size = 15))
-  
-  p2 <- p2 %>%
-    plotly::ggplotly() %>%
-    plotly::add_text(x = mean(distanceData$Distance), y = max(ggplot2::ggplot_build(p2)$data[[1]]$ymax),
-                     text = querySequence, textfont = list(size = 12))
-  
-  # return interactive histogram
-  return(plotly::subplot(p1, p2, titleY = T, titleX = T, nrows = 2, margin = 0.1) %>%
-           plotly::layout(title = "Distance Histogram", showlegend = F, height = 600, margin = list(t = 50)))
-}
-fa_enrich_scatter <- function(df = NULL){
-  # if only two populations (two occurrences of 'RPM' substring), create interactive 2d scatter plot
-  # else, create interactive 3d scatter plot
-  if(sum(grepl("RPM", colnames(df))) == 2){
-    plotly::plot_ly(df, type = "scatter", mode = "markers", x = ~RPM.x, y = ~RPM.y, text = ~seqs) %>%
-      plotly::layout(title = "RPM.x vs RPM.y",
-                     xaxis = list(type = "log"), yaxis = list(type = "log"))
-  }else{
-    plotly::plot_ly(df, type = "scatter3d", mode = "markers", x = ~RPM.x, y = ~RPM.y, z = ~RPM.z, text = ~seqs) %>%
-      plotly::layout(title = "RPM.x vs RPM.y vs RPM.z",
-                     xaxis = list(type = "log"), yaxis = list(type = "log", zaxis = list(type = "log")))
+  if(!("Reads" %in% colnames(distanceData))){
+    return(p1)
+  } else{
+    # distance histogram with total reads
+    p2 <- distanceData %>%
+      dplyr::group_by(Distance) %>%
+      dplyr::summarise(TotalReads = sum(Reads)) %>%
+      
+      ggplot2::ggplot(ggplot2::aes(x = Distance, y = TotalReads)) +
+      ggplot2::geom_bar(stat = "identity", fill = "skyblue", colour = "black") +
+      ggplot2::xlab("Distance") + ggplot2::ylab("Total number of reads") +
+      ggplot2::theme_bw() + ggplot2::theme(text = ggplot2::element_text(size = 15))
+    
+    p2 <- p2 %>%
+      plotly::ggplotly() %>%
+      plotly::add_text(x = mean(distanceData$Distance), y = max(ggplot2::ggplot_build(p2)$data[[1]]$ymax),
+                       text = querySequence, textfont = list(size = 12))
+    
+    # return interactive histogram
+    return(plotly::subplot(p1, p2, titleY = T, titleX = T, nrows = 2, margin = 0.1) %>%
+             plotly::layout(title = "Distance Histogram", showlegend = F, height = 600, margin = list(t = 50)))
   }
+}
+fa_enrich_seqPersistence <- function(fastaInputs = NULL, minReads = 0){
+  # initialize empty data frame
+  seqPersist <- data.frame()
+  
+  # iterate through all inputs
+  for(i in 1:length(fastaInputs)){
+    # bind main df with newly read sequences
+    seqPersist <- rbind(
+      seqPersist, 
+      fa_formatInput(fastaInput = fastaInputs[i]) %>% dplyr::select(seqs, Reads)
+    )
+  }
+  
+  # count number of sequences in 1 round, 2 rounds, etc.
+  seqPersist <- seqPersist %>%
+    dplyr::filter(Reads > minReads) %>%
+    dplyr::select(seqs) %>%
+    table() %>%
+    as.data.frame() %>%
+    dplyr::group_by(Freq) %>%
+    dplyr::summarise(., seqCount = dplyr::n_distinct(.))
+  
+  # make bar plot
+  p <- ggplot2::ggplot(seqPersist, ggplot2::aes(Freq, seqCount, text = glue::glue(
+    "
+  No. Rounds Detected: {Freq}
+  No. Unique Reads: {seqCount}
+  "
+  ))) +
+    ggplot2::geom_bar(stat = "identity", colour = "black", fill = "skyblue") +
+    ggplot2::labs(x = "No. Rounds Detected", y = "No. Unique Reads", title = "Sequence Persistence Analysis") +
+    ggplot2::scale_x_continuous(breaks = unique(seqPersist$Freq)) +
+    ggplot2::theme_classic()
+  
+  # return interactive figure
+  return(plotly::ggplotly(p, tooltip = "text"))
 }
 fa_enrich_histogram <- function(df = NULL){
-  # if only two populations (one occurence of the 'foldChange' substring), create a single interactive histogram
-  # else, create one interactive histogram per comparison (three histograms total): y-x, z-y, z-x
-  if(sum(grepl("log2_E", colnames(df))) == 1){
-    fig <- plotly::ggplotly(ggplot2::ggplot(df, ggplot2::aes(log2_E_yx)) +
-                              ggplot2::geom_histogram(color = "black", fill = "blue", bins = 30) + 
-                              ggplot2::ggtitle("Population y vs Population x") + ggplot2::xlab("log2(Enrichment)") +
-                              ggplot2::ylab("Number of Unique Sequences") +
-                              ggplot2::theme_bw() + ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45)))
-  } else{
-    fig1 <- plotly::ggplotly(ggplot2::ggplot(df, ggplot2::aes(log2_E_yx)) +
-                               ggplot2::geom_histogram(color = "black", fill = "blue", bins = 30) + 
-                               ggplot2::ggtitle("Population y vs Population x") + ggplot2::xlab("log2(Enrichment)") +
-                               ggplot2::ylab("Number of Unique Sequences") +
-                               ggplot2::theme_bw() + ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45)))
-    
-    fig2 <- plotly::ggplotly(ggplot2::ggplot(df, ggplot2::aes(log2_E_zy)) +
-                               ggplot2::geom_histogram(color = "black", fill = "orange", bins = 30) + 
-                               ggplot2::ggtitle("Population z vs Population y") + ggplot2::xlab("log2(Enrichment)") +
-                               ggplot2::ylab("Number of Unique Sequences") +
-                               ggplot2::theme_bw() + ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45)))
-    
-    fig3 <- plotly::ggplotly(ggplot2::ggplot(df, ggplot2::aes(log2_E_zx)) +
-                               ggplot2::geom_histogram(color = "black", fill = "green", bins = 30) + 
-                               ggplot2::ggtitle("Population z vs Population x") + ggplot2::xlab("log2(Enrichment)") +
-                               ggplot2::ylab("Number of Unique Sequences") +
-                               ggplot2::theme_bw() + ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45)))
-    
-    fig <- plotly::subplot(fig1, fig2, fig3) %>%
-      plotly::layout(title = "log2(Enrichment) Histogram", showlegend = F)
-  }
+  # get population information from log2E column
+  popInfo <- substr(colnames(df)[1], 7, 8)
   
-  # return histogram(s)
+  # rename column to appease ggplot2 grammar
+  colnames(df) <- "log2E"
+  
+  # make plot
+  p <- ggplot2::ggplot(df, ggplot2::aes(log2E)) +
+    ggplot2::geom_histogram(color = "black", fill = "skyblue", bins = 30) +
+    ggplot2::labs(x = "log2(Enrichment)", 
+                  y = "Number of Unique Sequences",
+                  title = paste0("log2E Histogram - ", substr(popInfo, 1, 1), ":", substr(popInfo, 2, 2))) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45))
+  
+  # return interactive figure
+  return(plotly::ggplotly())
+}
+fa_enrich_scatter <- function(df = NULL){
+  # save RPM names
+  rpmNames <- colnames(df)[1:2]
+  
+  # rename RPM columns to appease plotly grammar
+  colnames(df)[1:2] <- c("RPM1", "RPM2")
+  
+  # make interactive figure
+  fig <- plotly::plot_ly(df, type = "scatter", mode = "markers", x = ~RPM1, y = ~RPM2, text = ~seqs, color = I("skyblue"), alpha = 0.5) %>%
+    plotly::layout(title = paste0(rpmNames[1], " vs ", rpmNames[2]),
+                   xaxis = list(type = "log", title = rpmNames[1]), yaxis = list(type = "log", title = rpmNames[2]))
+  
+  # return interactive figure
   return(fig)
 }
 fa_enrich_volcano <- function(df = NULL){
-  # if only two populations (two occurrences of the 'RPM' substring), create a single interactive volcano plot
-  # else, create one interactive volcano plot per comparison (three volcano plots total): y-x, z-y, z-x
-  if(sum(grepl("RPM", colnames(df))) == 2){
-    fig <- plotly::plot_ly(df, type = "scatter", mode = "markers",
-                   x = ~log2_E_yx, y = ~sqrt(log2(Reads.y) / log2(sum(Reads.y))), text = ~seqs) %>%
-      plotly::layout(title = "RPM Volcano Plot",
-             xaxis = list(title = "log2(Enrichment)"),
-             yaxis = list(title = "Sqrt(log2(Reads.y) / log2(sum(Reads.y)))"))
+  # get population information from log2E column
+  popInfo <- substr(colnames(df)[1], 7, 8)
+  
+  # rename 1st column to appease plotly grammar
+  colnames(df)[1] <- "log2E"
+  
+  # make interactive figure
+  fig <- plotly::plot_ly(df, type = "scatter", mode = "markers",
+                         x = ~log2E, y = ~statStrength, text = ~seqs) %>%
+    plotly::layout(title = paste0("RPM Volcano Plot - ", substr(popInfo, 1, 1), ":", substr(popInfo, 2, 2)),
+                   xaxis = list(title = "log2(Enrichment)"),
+                   yaxis = list(title = "Statistical Strength"))
+  
+  # return interactive figure
+  return(fig)
+}
+fa_enrich_ra <- function(df = NULL){
+  # save RPM names
+  rpmNames <- colnames(df)[1:2]
+  
+  # rename RPM columns to appease plotly grammar
+  colnames(df)[1:2] <- c("RPM1", "RPM2")
+  
+  # add epsilon factor if RPM is equal to 0
+  df <- df %>%
+    dplyr::mutate(
+      RPM1 = ifelse(RPM1 == 0, RPM1 + 0.1, RPM1),
+      RPM2 = ifelse(RPM2 == 0, RPM2 + 0.1, RPM2)
+    )
+  
+  # add fold change and average log RPM
+  df <- df %>%
+    dplyr::mutate(
+      R = log2(RPM2 / RPM1),
+      A = 0.5 * log2(RPM2 * RPM1)
+    )
+  
+  # make plot
+  p <- ggplot(df, aes(x = A, y = R, text = seqs)) +
+    geom_point(colour = "skyblue", alpha = 0.5) +
+    labs(x = "Average log2(RPM)", y = "Fold Change", title = "Enrichment RA Plot") +
+    theme_classic()
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p)
+  
+  # return interactive figure
+  return(fig)
+}
+fa_enrich_clusterBoxplots <- function(df = NULL){
+  # save population information
+  populations <- gsub(".*_", "", colnames(df)[4]) %>% toupper() %>% strsplit("") %>% unlist()
+  
+  # rename columns for plotting functionality
+  colnames(df) <- c("Seqs", "Cluster", "SeedDistance", "Enrichment")
+  
+  # get longest cluster number string
+  padLength <- df$Cluster %>% as.character() %>% nchar() %>% max()
+  
+  # left-pad cluster number and sort
+  df_format <- df %>%
+    dplyr::mutate(Cluster = stringr::str_pad(Cluster, padLength, pad = "0", side = "left")) %>%
+    dplyr::arrange(Cluster) %>%
+    dplyr::mutate(Cluster = factor(Cluster, levels = unique(Cluster)))
+  
+  # filter for seed sequences
+  df_seeds <- df_format %>% filter(SeedDistance == 0)
+  
+  # make box plots
+  p <- ggplot2::ggplot() +
+    ggplot2::geom_boxplot(
+      data = df_format,
+      ggplot2::aes(Cluster, Enrichment),
+      fill = "skyblue", outlier.shape = NA
+    ) +
+    ggplot2::geom_point(
+      data = df_seeds,
+      ggplot2::aes(Cluster, Enrichment, text = glue::glue(
+        "
+      Cluster no.: {Cluster}
+      Enrichment: {Enrichment}
+      Seed: {Seqs}
+      "
+      )),
+      colour = "red", pch = 18
+    ) +
+    ggplot2::labs(x = "Cluster No.", y = "Enrichment",
+                  title = paste0("Sequence Enrichment by Cluster - ", populations[1], ":", populations[2])) +
+    ggplot2::theme_classic()
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p, tooltip = "text", dynamicTicks = TRUE)
+  
+  # return interactive figure
+  return(fig)
+}
+fa_enrich_avgSequenceBar <- function(dataPath = NULL, refSeq = NULL, enrichRange = c(0,5), seqType = "Nucleotide", modList = "",
+                                     lowCol = "red2", midCol = "gold", highCol = "yellow"){
+  # nucleotides or amino acids
+  if(seqType == "Nucleotide"){
+    charList <- c("A", "C", "G", "T", "U")
+  } else if(seqType == "AminoAcid"){
+    charList <- c("*",
+                  "A", "C", "F", "G", "I", "L", "M", "P", "V",
+                  "W", "N", "Q", "S", "T", "Y",
+                  "H", "K", "R", "D", "E")
   } else{
-    fig1 <- plotly::plot_ly(df, type = "scatter", mode = "markers",
-                    x = ~log2_E_yx, y = ~sqrt(log2(Reads.y) / log2(sum(Reads.y))), text = ~seqs) %>%
-      plotly::layout(xaxis = list(title = "log2(Enrichment) - (y:x)"),
-             yaxis = list(title = "Sqrt(log2(Reads.y) / log2(sum(Reads.y)))"))
-    
-    fig2 <- plotly::plot_ly(df, type = "scatter", mode = "markers",
-                    x = ~log2_E_zy, y = ~sqrt(log2(Reads.z) / log2(sum(Reads.z))), text = ~seqs) %>%
-      plotly::layout(xaxis = list(title = "log2(Enrichment) - (z:y)"),
-             yaxis = list(title = "Sqrt(log2(Reads.z) / log2(sum(Reads.z)))"))
-    
-    fig3 <- plotly::plot_ly(df, type = "scatter", mode = "markers",
-                    x = ~log2_E_zx, y = ~sqrt(log2(Reads.z) / log2(sum(Reads.z))), text = ~seqs) %>%
-      plotly::layout(xaxis = list(title = "log2(Enrichment) - (z:x)"),
-             yaxis = list(title = "Sqrt(log2(Reads.z) / log2(sum(Reads.z)))"))
-    
-    fig <- plotly::subplot(fig1, fig2, fig3, titleY = T, titleX = T) %>%
-      plotly::layout(title = "log2(Enrichment) Volcano Plot", showlegend = F)
+    message("seqType must be one of Nucleotide or AminoAcid!")
+    return(NULL)
   }
   
-  # return volcano plot(s)
-  return(fig)
+  # check if any modifications are requested
+  if(modList != ""){
+    # split modifications by newline
+    mods_formatted <- strsplit(modList, split = "\n") %>% unlist()
+    
+    # check if any additions
+    if(sum(nchar(mods_formatted) == 1) > 0){
+      additions <- mods_formatted[nchar(mods_formatted) == 1]
+      
+      # add new characters
+      charList <- charList %>%
+        append(additions)
+    }
+    
+    # check if any replacements
+    if(sum(nchar(mods_formatted) > 1) > 0){
+      replacements <- mods_formatted[nchar(mods_formatted) > 1]
+      
+      # make replacements
+      charList <- charList %>%
+        replace(
+          .,
+          . == replacements %>% strsplit(., ",") %>% lapply(function(x) x[1]) %>% unlist(),
+          replacements %>% strsplit(., ",") %>% lapply(function(x) x[2]) %>% unlist()
+        )
+    }
+  }
+  
+  # only keep unique characters (in case duplicates are added)
+  charList <- unique(charList)
+  
+  # length of reference sequence
+  seqLength <- nchar(refSeq)
+  
+  # replace ambiguities in reference sequence with X
+  refSeq <- gsub(
+    paste0("[^", paste(charList, collapse = ""), "]") %>% gsub("\\*", "\\\\*", .),
+    "X",
+    refSeq
+  )
+  
+  # read data and only keep sequences with the same length as the reference sequence; also convert ambiguities to X
+  hmData <- read.csv(dataPath) %>%
+    dplyr::mutate(., seqs = as.character(seqs)) %>%
+    dplyr::filter(., nchar(seqs) == seqLength) %>%
+    dplyr::mutate(
+      seqs = gsub(
+        paste0("[^", paste(charList, collapse = ""), "]") %>% gsub("\\*", "\\\\*", .),
+        "X",
+        seqs
+      )
+    )
+  
+  # initialize matrix; rows are charLists and cols are the positions of the WT seq
+  hmDF <- matrix(data = NA, nrow = length(charList), ncol = seqLength,
+                 dimnames = list(charList,
+                                 unlist(stringr::str_split(refSeq, pattern = ""))))
+  
+  # iterate through each position of the WT seq
+  for(i in 1:seqLength){
+    # extract all charLists that are not WT
+    muts <- data.frame(table(substr(hmData$seqs, i, i))) %>%
+      dplyr::filter(Var1 != substr(refSeq, i, i) & Var1 != "X") %>%
+      dplyr::pull(Var1) %>%
+      as.character()
+    
+    # iterate through each of the substitutions
+    for(mut in muts) {
+      # get mean enrichment score from each entry
+      hmDF[mut, i] <- hmData %>%
+        dplyr::filter(substr(seqs, i, i) == mut) %>%
+        dplyr::summarize(meanEnrichment = mean(enrichment_ba)) %>%
+        dplyr::pull(meanEnrichment)
+    }
+  }
+  
+  # split reference seq. into single characters appended with "_{position}"
+  refSeq_formatted <- paste0(unlist(stringr::str_split(refSeq, pattern = "")), "_", 1:seqLength)
+  
+  # make df that repeats charList (amino acids or nucleotides) for every position of the reference sequence; add column for enrichment
+  dta <- expand.grid(Characters = charList, refSeq = refSeq_formatted) %>%
+    dplyr::mutate(Enrichment = as.vector(unlist(hmDF)))
+  
+  # floor and ceiling with enrichment values, depending on user preference
+  dta$Enrichment[dta$Enrichment < min(enrichRange)] <- min(enrichRange)
+  dta$Enrichment[dta$Enrichment > max(enrichRange)] <- max(enrichRange)
+  
+  # group by refSeq, which is the column with formatted positions from the reference sequence; get mean enrichment per character
+  dta_average <- dta %>%
+    dplyr::group_by(refSeq) %>%
+    dplyr::summarize(AvEnrich = mean(Enrichment, na.rm = T))
+  
+  p <- ggplot2::ggplot(dta_average, ggplot2::aes(refSeq, AvEnrich, fill = AvEnrich, text = glue::glue(
+    "
+    WT charList: {refSeq}
+    Average Enrichment: {AvEnrich}
+    "
+  ))) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::scale_x_discrete(labels = gsub("_.*", "", refSeq_formatted)) +
+    ggplot2::scale_fill_gradient2(midpoint = quantile(dta_average$AvEnrich, 0.65, na.rm = T),
+                                  low = lowCol, mid = midCol, high = highCol) +
+    ggplot2::labs(x = "Reference Sequence",
+                  y = "Avg. Enrichment of Non-Reference Residues",
+                  title = "Average Enrichment per Position",
+                  fill = "Average\nEnrichment") +
+    ggplot2::theme_classic()
+  
+  return(plotly::ggplotly(p, tooltip = "text"))
+}
+fa_enrich_heatMap <- function(dataPath = NULL, refSeq = NULL, enrichRange = c(0,5), seqType = "Nucleotide", modList = "",
+                              lowCol = "red2", midCol = "gold", highCol = "yellow"){
+  # nucleotides or amino acids
+  if(seqType == "Nucleotide"){
+    charList <- c("A", "C", "G", "T", "U")
+  } else if(seqType == "AminoAcid"){
+    charList <- c("*",
+                  "A", "C", "F", "G", "I", "L", "M", "P", "V",
+                  "W", "N", "Q", "S", "T", "Y",
+                  "H", "K", "R", "D", "E")
+  } else{
+    message("seqType must be one of Nucleotide or AminoAcid!")
+    return(NULL)
+  }
+  
+  # check if any modifications are requested
+  if(modList != ""){
+    # split modifications by newline
+    mods_formatted <- strsplit(modList, split = "\n") %>% unlist()
+    
+    # check if any additions
+    if(sum(nchar(mods_formatted) == 1) > 0){
+      additions <- mods_formatted[nchar(mods_formatted) == 1]
+      
+      # add new characters
+      charList <- charList %>%
+        append(additions)
+    }
+    
+    # check if any replacements
+    if(sum(nchar(mods_formatted) > 1) > 0){
+      replacements <- mods_formatted[nchar(mods_formatted) > 1]
+      
+      # make replacements
+      charList <- charList %>%
+        replace(
+          .,
+          . == replacements %>% strsplit(., ",") %>% lapply(function(x) x[1]) %>% unlist(),
+          replacements %>% strsplit(., ",") %>% lapply(function(x) x[2]) %>% unlist()
+        )
+    }
+  }
+  
+  # only keep unique characters (in case duplicates are added)
+  charList <- unique(charList)
+  
+  # length of reference sequence
+  seqLength <- nchar(refSeq)
+  
+  # replace ambiguities in reference sequence with X
+  refSeq <- gsub(
+    paste0("[^", paste(charList, collapse = ""), "]") %>% gsub("\\*", "\\\\*", .),
+    "X",
+    refSeq
+  )
+  
+  # read data and only keep sequences with the same length as the reference sequence; also convert ambiguities to X
+  hmData <- read.csv(dataPath) %>%
+    dplyr::mutate(., seqs = as.character(seqs)) %>%
+    dplyr::filter(., nchar(seqs) == seqLength) %>%
+    dplyr::mutate(
+      seqs = gsub(
+        paste0("[^", paste(charList, collapse = ""), "]") %>% gsub("\\*", "\\\\*", .),
+        "X",
+        seqs
+      )
+    )
+  
+  # initialize matrix; rows are charLists and cols are the positions of the WT seq
+  hmDF <- matrix(data = NA, nrow = length(charList), ncol = seqLength,
+                 dimnames = list(charList,
+                                 unlist(stringr::str_split(refSeq, pattern = ""))))
+  
+  # iterate through each position of the WT seq
+  for(i in 1:seqLength){
+    # extract all charLists that are not WT
+    muts <- data.frame(table(substr(hmData$seqs, i, i))) %>%
+      dplyr::filter(Var1 != substr(refSeq, i, i) & Var1 != "X") %>%
+      dplyr::pull(Var1) %>%
+      as.character()
+    
+    # iterate through each of the substitutions
+    for(mut in muts) {
+      # get mean enrichment score from each entry
+      hmDF[mut, i] <- hmData %>%
+        dplyr::filter(substr(seqs, i, i) == mut) %>%
+        dplyr::summarize(meanEnrichment = mean(enrichment_ba)) %>%
+        dplyr::pull(meanEnrichment)
+    }
+  }
+  
+  # split reference seq. into single characters appended with "_{position}"
+  refSeq_formatted <- paste0(unlist(stringr::str_split(refSeq, pattern = "")), "_", 1:seqLength)
+  
+  # make df that repeats charList (amino acids or nucleotides) for every position of the reference sequence; add column for enrichment
+  dta <- expand.grid(Characters = charList, refSeq = refSeq_formatted) %>%
+    dplyr::mutate(Enrichment = as.vector(unlist(hmDF)))
+  
+  # floor and ceiling with enrichment values, depending on user preference
+  dta$Enrichment[dta$Enrichment < min(enrichRange)] <- min(enrichRange)
+  dta$Enrichment[dta$Enrichment > max(enrichRange)] <- max(enrichRange)
+  
+  # make heatmap as raster
+  p <- ggplot2::ggplot(dta, ggplot2::aes(refSeq, Characters, fill = Enrichment)) +
+    ggplot2::geom_raster() +
+    ggplot2::scale_fill_gradient2(midpoint = quantile(dta$Enrichment, 0.65, na.rm = T),
+                                  low = lowCol, mid = midCol, high = highCol) +
+    ggplot2::scale_x_discrete(labels = gsub("_.*", "", refSeq_formatted)) +
+    ggplot2::labs(x = "Reference Sequence",
+                  y = "Residues",
+                  title = "Enrichment Heat Map",
+                  fill = "Average\nEnrichment") +
+    ggplot2::theme_classic()
+  
+  # return interactive figure
+  return(plotly::ggplotly(p))
 }
 fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, topClusters = 10, keepNC = T){
   # format clustered file
   clusterDF <- fa_formatInput(fastaInput = clusterFile, population = NULL)
   
   # return NULL if the sequences are made of a non-nucleotide alphabet
-  if(sum(grepl("[^ACGTU]", clusterDF$seqs)) != 0){
-    return(NULL)
-  }
+  # if(sum(grepl("[^ACGTU]", clusterDF$seqs)) != 0){
+  #   return(NULL)
+  # }
+  
+  # convert ambiguous bases to X
+  clusterDF$seqs <- gsub("[^ACGTU]", "X", clusterDF$seqs)
   
   # convert NC values to NA
   clusterDF[clusterDF == "NC"] <- NA
@@ -330,6 +877,33 @@ fa_clusterDiversity_metaplot <- function(diversityDF = NULL){
   return(plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = T, shareX = T, nrows = 3, margin = 0.05) %>%
            plotly::layout(title = "Cluster Metaplots", showlegend = F, height = 600))
 }
+fa_clusterEnrichTracker <- function(clusterEnrichDF = NULL){
+  # make line plot
+  p <- clusterEnrichDF %>%
+    ggplot2::ggplot(., ggplot2::aes(
+      Population, TotalRPM,
+      colour = Seeds,
+      text = glue::glue(
+        "
+        Population: {Population}
+        File Name: {FileName}
+        Seed: {Seeds}
+        Cluster: {Cluster}
+        Unique Sequences: {TotalSequences}
+        Total Reads: {TotalReads}
+        Total RPM: {TotalRPM}
+        "
+      )
+    )) +
+    ggplot2::geom_line(group = 1, size = 1) +
+    ggplot2::geom_point(size = 3) +
+    ggplot2::scale_x_continuous(breaks = unique(clusterEnrichDF$Population)) +
+    ggplot2::labs(x = "Population", y = "Total RPM", title = "Seed Tracker") +
+    ggplot2::theme_classic()
+  
+  # return interactive figure
+  return(plotly::ggplotly(p, height = 800, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2)))
+}
 
 ##### user functions #####
 fa_count <- function(dataInput = NULL){
@@ -360,7 +934,85 @@ fa_count <- function(dataInput = NULL){
   # return data.frame
   return(seqCounts[,c(6,3,2,4:5,1)])
 }
-fa_translate <- function(fastaInput = NULL, orf = 1, converge = T){
+fa_count2 <- function(dataInput = NULL){
+  
+  # get start time
+  startTime <- Sys.time()
+  
+  # read FASTQ/A file and keep the sequences in a data.frame
+  if(toupper(sub(".*(?=.$)", "", dataInput, perl=T)) == "Q"){
+    allSeqs <- data.frame(seqs = LaF::get_lines(dataInput, line_numbers = seq(2, LaF::determine_nlines(dataInput), by = 4)))
+  }else{
+    
+    # check if sequences have IDs
+    if(readLines(dataInput, n = 1) %>% substr(1, 1) == ">"){
+      allSeqs <- data.frame(seqs = LaF::get_lines(dataInput, line_numbers = seq(2, LaF::determine_nlines(dataInput), by = 2)))
+    } else{
+      allSeqs <- data.frame(seqs = LaF::get_lines(dataInput, line_numbers = seq(1, LaF::determine_nlines(dataInput), by = 1)))
+    }
+  }
+  
+  # count/sort unique sequences; add rank, rpm, and sequence ID to data.frame
+  seqCounts <- allSeqs %>%
+    dplyr::count(seqs, sort = T, name = "Reads") %>%
+    tibble::rowid_to_column(var = "Rank") %>%
+    dplyr::mutate(
+      seqs = as.character(seqs) %>% gsub("\r", "", .),
+      RPM = round(Reads / (sum(Reads) / 1e6), 2),
+      Length = as.numeric(nchar(seqs)),
+      id = paste0(">", Rank, "-", Reads, "-", RPM)
+    ) %>%
+    dplyr::relocate(id, Rank, Reads, RPM, Length, seqs)
+  
+  # message elapsed time
+  message(gsub("Time difference of", "Elapsed time:", capture.output(round(Sys.time() - startTime, 2))))
+  
+  # return data.frame
+  return(seqCounts)
+}
+fa_count3 <- function(dataInput = NULL){
+  
+  # get start time
+  startTime <- Sys.time()
+  
+  # read FASTQ/A file and keep the sequences in a data.frame
+  if(toupper(sub(".*(?=.$)", "", dataInput, perl=T)) == "Q"){
+    allSeqs <- data.frame(seqs = LaF::get_lines(dataInput, line_numbers = seq(2, LaF::determine_nlines(dataInput), by = 4)))
+  }else{
+    
+    # check if sequences have IDs
+    if(readLines(dataInput, n = 1) %>% substr(1, 1) == ">"){
+      allSeqs <- data.frame(seqs = LaF::get_lines(dataInput, line_numbers = seq(2, LaF::determine_nlines(dataInput), by = 2)))
+    } else{
+      allSeqs <- data.frame(seqs = LaF::get_lines(dataInput, line_numbers = seq(1, LaF::determine_nlines(dataInput), by = 1)))
+    }
+  }
+  
+  # define function for counting
+  countFxn <- function(x){
+    data.table::data.table(x)[, .N, keyby = x]
+  }
+  
+  # count/sort unique sequences; add rank, rpm, and sequence ID to data.frame
+  seqCounts <- countFxn(allSeqs$seqs) %>% as.data.frame() %>%
+    dplyr::rename(seqs = x, Reads = N) %>%
+    dplyr::arrange(dplyr::desc(Reads)) %>%
+    tibble::rowid_to_column(var = "Rank") %>%
+    dplyr::mutate(
+      seqs = as.character(seqs) %>% gsub("\r", "", .),
+      RPM = round(Reads / (sum(Reads) / 1e6), 2),
+      Length = as.numeric(nchar(seqs)),
+      id = paste0(">", Rank, "-", Reads, "-", RPM)
+    ) %>%
+    dplyr::relocate(id, Rank, Reads, RPM, Length, seqs)
+  
+  # message elapsed time
+  message(gsub("Time difference of", "Elapsed time:", capture.output(round(Sys.time() - startTime, 2))))
+  
+  # return data.frame
+  return(seqCounts)
+}
+fa_translate <- function(fastaInput = NULL, orf = 1, converge = T, inputChanges = "", translateSelection = "Standard"){
   # read FASTA file, save sequence IDs and sequences
   fastaData <- readLines(fastaInput)
   
@@ -382,29 +1034,16 @@ fa_translate <- function(fastaInput = NULL, orf = 1, converge = T){
                    ifelse(nchar(.) %% 3 == 2, gsub(".{2}$", "", .), .) %>%
                    gsub("(.{3})", "\\1 ", .), which = "right")
   
-  # translate sequences, remove white spaces
-  seqs <- gsub("UUU|UUC", "F", seqs) %>%
-    gsub("UUA|UUG|CUU|CUC|CUA|CUG", "L", .) %>%
-    gsub("AUU|AUC|AUA", "I", .) %>%
-    gsub("AUG", "M", .) %>%
-    gsub("GUU|GUC|GUA|GUG", "V", .) %>%
-    gsub("UCU|UCC|UCA|UCG|AGU|AGC", "S", .) %>%
-    gsub("CCU|CCC|CCA|CCG", "P", .) %>%
-    gsub("ACU|ACC|ACA|ACG", "T", .) %>%
-    gsub("GCU|GCC|GCA|GCG", "A", .) %>%
-    gsub("UAU|UAC", "Y", .) %>%
-    gsub("UAA|UAG|UGA", "-", .) %>%
-    gsub("CAU|CAC", "H", .) %>%
-    gsub("CAA|CAG", "Q", .) %>%
-    gsub("AAU|AAC", "N", .) %>%
-    gsub("AAA|AAG", "K", .) %>%
-    gsub("GAU|GAC", "D", .) %>%
-    gsub("GAA|GAG", "E", .) %>%
-    gsub("UGU|UGC", "C", .) %>%
-    gsub("UGG", "W", .) %>%
-    gsub("CGU|CGC|CGA|CGG|AGA|AGG", "R", .) %>%
-    gsub("GGU|GGC|GGA|GGG", "G", .) %>%
-    gsub(" ", "", .)
+  # translate sequences: ambiguous codons to X, remove white spaces after translation
+  translationMapping <- fa_translate_mapping(inputChanges = inputChanges, translateSelection = translateSelection)
+  
+  # translate sequences according to user modifications (if any)
+  for(i in 1:nrow(translationMapping)){
+    seqs <- gsub(translationMapping[i,1], translationMapping[i,2], seqs)
+  }
+  
+  # finally, remove white spaces between amino acids
+  seqs <- gsub(" ", "", seqs)
   
   # optionally merge non-unique amino acid sequences
   if(converge){
@@ -436,7 +1075,7 @@ fa_translate <- function(fastaInput = NULL, orf = 1, converge = T){
   if(converge){
     translateDF <- merge(translateDF, as.data.frame(table(seqs)), by = "seqs")
     names(translateDF)[names(translateDF) == "Freq"] <- "Unique.Nt.Count"
-    translateDF <- translateDF[order(translateDF$Rank),]
+    translateDF <- translateDF[order(translateDF$Rank),c(2:6, 1)]
   }else{
     return(translateDF[,c(1,3:5,2)])
   }
@@ -521,79 +1160,133 @@ fa_motifSearch <- function(fastaInput = NULL, motif = NULL, highlight = F, parti
     return(countData[,c(1,3:5,2)])
   }
 }
-fa_motifTracker <- function(fastaInputs = NULL, motif = NULL, fileNames = NULL, motifType = "Nucleotide"){
-  # read files and get total reads per population
-  countData1 <- fa_formatInput(fastaInput = fastaInputs[1], population = 'x')
-  totalReads.x <- sum(countData1$Reads.x)
+fa_motif_motifTracker <- function(fastaInputs = NULL, fileNames = NULL, queryList = NULL, queryAliases = NULL, motifType = "Nucleotide"){
   
-  countData2 <- fa_formatInput(fastaInput = fastaInputs[2], population = 'y')
-  totalReads.y <- sum(countData2$Reads.y)
+  # one motif query per line
+  queryList <- strsplit(queryList, "\n") %>% unlist()
   
-  if(length(fastaInputs) == 3){
-    countData3 <- fa_formatInput(fastaInput = fastaInputs[3], population = 'z')
-    totalReads.z <- sum(countData3$Reads.z)
+  # one alias per line
+  if(!is.null(queryAliases)){
+    queryAliases <- strsplit(queryAliases, "\n") %>% unlist()
+    
+    # confirm one alias per query
+    if(length(queryList) != length(queryAliases)){
+      message("Number of aliases should equal number of queries!")
+      return(NULL)
+    }
   }
   
-  # format motif, convert Boolean OR ("|") into character vector, make into matrix of all pattern permutations
-  motif <- fa_motif_format(motifList = motif, motifType = "Nucleotide") %>%
-    strsplit(., "\\|") %>% unlist(.) %>%
-    patternPerms(patterns = .) %>% as.matrix(.)
+  # for each query, format the motif
+  queryList_mod <- queryList %>%
+    sapply(., function(x) fa_motif_format(motifList = x, motifType = motifType)) %>%
+    as.vector() %>%
+    paste0("(?=.*", ., ")") %>%
+    gsub("\\|", ")(?=.*", .)
   
-  # make one regex pattern from all permutations
-  motif[,1] <- paste0("(?=", motif[,1])
-  motif[,ncol(motif)] <- paste0(motif[,ncol(motif)], ")")
-  motif <- apply(motif, 1, paste0, collapse = ".*") %>%
-    paste0(., collapse = "|")
+  # initialize target data.frame
+  targetDF <- data.frame()
   
-  # count number of pattern occurrences
-  motifCount.x <- lengths(regmatches(countData1$seqs, gregexpr(motif, countData1$seqs, perl = T)))
-  motifCount.y <- lengths(regmatches(countData2$seqs, gregexpr(motif, countData2$seqs, perl = T)))
+  # initialize list of sequence counts
+  lengthList <- list()
   
-  if(length(fastaInputs) == 3){
-    motifCount.z <- lengths(regmatches(countData3$seqs, gregexpr(motif, countData3$seqs)))
+  # iterate through each fasta file
+  for(i in 1:length(fastaInputs)){
+    
+    # read and format FASTA input
+    formatDF <- fa_formatInput(fastaInput = fastaInputs[i])
+    
+    # get number of sequences in FASTA file
+    lengthList[[i]] <- sum(formatDF$Reads) / 1e6
+    
+    # iterate through each formatted query
+    for(j in 1:length(queryList_mod)){
+      
+      # row bind targetDF with formatted fasta input after searching for query
+      targetDF <- rbind(
+        targetDF,
+        formatDF %>%
+          dplyr::filter(., grepl(queryList_mod[j], seqs, perl = T)) %>%
+          dplyr::mutate(., Motif = queryList[j], Population = i, FileName = fileNames[i])
+      )
+    }
   }
   
-  # format output
-  motifEnrich <- data.frame(File.Names = fileNames[1:2],
-                            Unique.Reads = c(nrow(countData1),
-                                             nrow(countData2)),
-                            Total.Reads = c(totalReads.x,
-                                            totalReads.y),
-                            Seqs.With.Motif = c(sum(countData1[motifCount.x != 0, "Reads.x"]),
-                                                sum(countData2[motifCount.y != 0, "Reads.y"])),
-                            Seqs.RPM = c(round(sum(countData1[motifCount.x != 0, "Reads.x"]) / (totalReads.x / 1e6), 2),
-                                         round(sum(countData2[motifCount.y != 0, "Reads.y"]) / (totalReads.y / 1e6), 2)),
-                            Motif.Occurrences = c(sum(motifCount.x * countData1$Reads.x),
-                                                  sum(motifCount.y * countData2$Reads.y)),
-                            Motif.RPM = c(round(sum(motifCount.x * countData1$Reads.x) / (totalReads.x / 1e6), 2),
-                                          round(sum(motifCount.y * countData2$Reads.y) / (totalReads.y / 1e6), 2)))
+  # unlist length list
+  lengthList <- lengthList %>% unlist()
   
-  if(length(fastaInputs) == 3){
-    motifEnrich[3,] <- c(fileNames[3],
-                         nrow(countData3),
-                         totalReads.z,
-                         sum(countData3[motifCount.z != 0, "Reads.z"]),
-                         round(sum(countData1[motifCount.z != 0, "Reads.z"]) / (totalReads.z / 1e6), 2),
-                         sum(motifCount.z * countData3$Reads.z),
-                         round(sum(motifCount.z * countData3$Reads.z) / (totalReads.z / 1e6), 2))
+  # group by population and motif, get total reads and RPM for each motif
+  targetDF <- targetDF %>%
+    dplyr::group_by(., Population, FileName, Motif) %>%
+    dplyr::summarise(., TotalReads = sum(Reads)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(., TotalRPM = round(TotalReads / lengthList[Population], 2)) %>%
+    dplyr::arrange(Motif)
+  
+  # add Alias column if they were supplied
+  if(!is.null(queryAliases)){
+    # initialize column
+    targetDF <- targetDF %>% dplyr::mutate(Alias = NA, .after = Motif)
+    
+    # iterate through IDs
+    for(i in 1:length(queryAliases)){
+      targetDF <- targetDF %>%
+        dplyr::mutate(Alias = ifelse(Motif == queryList[i], queryAliases[i], Alias))
+    }
   }
   
-  # make RPM column a numeric
-  motifEnrich$Motif.RPM <- as.numeric(motifEnrich$Motif.RPM)  
-  
-  # message with enrichment scores
-  motifEnrich_messages <- rep(NA, ifelse(length(fastaInputs) == 3, 3, 1))
-  motifEnrich_messages[1] <- paste0('Enrichment (population 2 to population 1): ', round(motifEnrich$Motif.RPM[2] / motifEnrich$Motif.RPM[1], 3))
-  
-  if(length(fastaInputs) == 3){
-    motifEnrich_messages[2] <- paste0('Enrichment (population 3 to population 2): ', round(motifEnrich$Motif.RPM[3] / motifEnrich$Motif.RPM[2], 3))
-    motifEnrich_messages[3] <- paste0('Enrichment (population 3 to population 1): ', round(motifEnrich$Motif.RPM[3] / motifEnrich$Motif.RPM[1], 3))
-  }
-  
-  # return data.frame
-  return(motifEnrich)
+  # return targetDF
+  return(targetDF)
 }
-fa_distance <- function(dataInput = NULL, querySequence = NULL){
+fa_motif_sequenceTracker <- function(fastaInputs = NULL, fileNames = NULL, queryList = NULL, queryAliases = NULL){
+  
+  # one sequence query per line
+  queryList <- strsplit(queryList, "\n") %>% unlist()
+  
+  # one alias per line
+  if(!is.null(queryAliases)){
+    queryAliases <- strsplit(queryAliases, "\n") %>% unlist()
+    
+    # confirm one alias per query
+    if(length(queryList) != length(queryAliases)){
+      message("Number of aliases should equal number of queries!")
+      return(NULL)
+    }
+  }
+  
+  # initialize targetDF
+  targetDF <- data.frame()
+  
+  # iterate through all input files; format file, pull sequences from query list, add population; bind to previous df
+  for(i in 1:length(fastaInputs)){
+    targetDF <- rbind(
+      targetDF,
+      fa_formatInput(fastaInput = fastaInputs[i]) %>%
+        dplyr::filter(., seqs %in% queryList) %>%
+        dplyr::mutate(., Population = i, FileName = fileNames[i])
+    )
+  }
+  
+  # rearrange columns and sort by seqs
+  targetDF <- targetDF %>%
+    dplyr::relocate(., c(Population, FileName, seqs, Rank, Reads, RPM)) %>%
+    dplyr::arrange(seqs)
+  
+  # add Alias column if they were supplied
+  if(!is.null(queryAliases)){
+    # initialize column
+    targetDF <- targetDF %>% dplyr::mutate(Alias = NA, .after = seqs)
+    
+    # iterate through IDs
+    for(i in 1:length(queryAliases)){
+      targetDF <- targetDF %>%
+        dplyr::mutate(Alias = ifelse(seqs == queryList[i], queryAliases[i], Alias))
+    }
+  }
+  
+  # return targetDF
+  return(targetDF)
+}
+fa_distance <- function(dataInput = NULL, querySequence = NULL, seqRange = c(1, 1000)){
   # read file
   if(grepl("CSV", toupper(dataInput))){
     inputDF <- read.csv(dataInput)
@@ -601,29 +1294,89 @@ fa_distance <- function(dataInput = NULL, querySequence = NULL){
     inputDF <- fa_formatInput(fastaInput = dataInput)
   }
   
-  # compute LED between each sequence and the query sequence
-  inputDF$Distance <- drop(adist(x = toupper(inputDF$seqs), y = toupper(querySequence)))
+  # add ID field
+  inputDF$id <- paste0(">", inputDF$Rank, "-", inputDF$Reads, "-", inputDF$RPM)
   
-  # return df after ordering by distance
-  return(inputDF[order(as.numeric(inputDF$Distance)),])
-}
-fa_enrich <- function(fastaInputs = NULL, removeNA = T){
-  # read and process FASTA files; merge by sequences and optionally remove sequences missing in multiple populations
-  countData1 <- fa_formatInput(fastaInput = fastaInputs[1], population = 'x')
-  countData2 <- fa_formatInput(fastaInput = fastaInputs[2], population = 'y')
-  
-  if(length(fastaInputs) == 3){
-    countData3 <- fa_formatInput(fastaInput = fastaInputs[3], population = 'z')
-    countMerge <- fa_enrich_merge(countData1 = countData1, countData2 = countData2, countData3 = countData3, removeNA = removeNA)
-  }else{
-    countMerge <- fa_enrich_merge(countData1 = countData1, countData2 = countData2, removeNA = removeNA)
+  # most inputs have a seqs column, but cluster analysis gives a seeds column; standardize the naming
+  if("Seeds" %in% colnames(inputDF)){
+    inputDF <- inputDF %>%
+      dplyr::rename(., seqs = Seeds)
   }
   
-  # return merged data.frame after ordering by 'Rank' in the first population
-  return(countMerge[order(as.numeric(countMerge$Rank.x)),])
+  # get length of query sequence
+  seqLength <- nchar(querySequence)
+  
+  # truncate sequences if 1) min(seqRange) > 1 and/or 2) max(seqRange) < seqLength
+  querySequence_trunc <- substr(querySequence,
+                                start = min(seqRange),
+                                stop = min(seqLength, max(seqRange)))
+  
+  # check if the truncated sequence is the same as the input sequence
+  if(querySequence == querySequence_trunc){
+    # compute LED between each target sequence and the query sequence
+    inputDF$Distance <- drop(adist(x = toupper(inputDF$seqs), y = toupper(querySequence)))
+    
+    # rearrange columns
+    inputDF <- inputDF[,c(5, 2:4, 6, 1)]
+  } else{
+    # truncate target sequences
+    inputDF$TruncSeqs <- substr(inputDF$seqs,
+                                start = min(seqRange),
+                                stop = min(seqLength, max(seqRange)))
+    
+    # compute LED between each truncated target sequence and the truncated query sequence
+    inputDF$Distance <- drop(adist(x = toupper(inputDF$TruncSeqs), y = toupper(querySequence_trunc)))
+    
+    # rearrange columns
+    inputDF <- inputDF[,c(5, 2:4, 7, 1, 6)]
+  }
+  
+  # order by distance and rearrange columns
+  inputDF <- inputDF[order(as.numeric(inputDF$Distance)),]
+  
+  # return df after ordering by distance
+  return(inputDF)
 }
-fa_clusterLED <- function(fastaInput = NULL, minReads = 10, maxLED = 7, totalClusters = 30, multipleOutputs = F, outputDirectory = NULL,
-                          keepNC = T){
+fa_enrich <- function(fastaInputs = NULL, keepNA = FALSE){
+  # initialize list of formatted files
+  inputList <- list()
+  
+  # read and format all input files; store them as a list
+  for(i in 1:length(fastaInputs)){
+    inputList[[i]] <- fa_formatInput(fastaInput = fastaInputs[i], population = letters[i])
+  }
+  
+  # merge all files together
+  for(i in 2:length(fastaInputs)){
+    # this 1st merge initializes the df
+    if(i == 2){
+      mergeDF <- merge(inputList[[i-1]], inputList[[i]], by = "seqs", all = ifelse(keepNA, TRUE, FALSE))
+    } else{
+      # merge every other file into this merged df
+      mergeDF <- merge(mergeDF, inputList[[i]], by = "seqs", all = ifelse(keepNA, TRUE, FALSE))
+    }
+  }
+  
+  # calculate enrichment and log2(enrichment) between all consecutive files
+  for(i in 2:length(fastaInputs)){
+    # enrichment
+    mergeDF[[paste0("enrichment_", letters[i], letters[i-1])]] <- mergeDF[[paste0("RPM.", letters[i])]] / mergeDF[[paste0("RPM.", letters[i-1])]]
+    
+    # log2(enrichment)
+    mergeDF[[paste0("log2E_", letters[i], letters[i-1])]] <- log2(mergeDF[[paste0("enrichment_", letters[i], letters[i-1])]])
+    
+    # finally, round both values to 3 decimal points
+    mergeDF[[paste0("enrichment_", letters[i], letters[i-1])]] <- round(mergeDF[[paste0("enrichment_", letters[i], letters[i-1])]], 3)
+    mergeDF[[paste0("log2E_", letters[i], letters[i-1])]] <- round(mergeDF[[paste0("log2E_", letters[i], letters[i-1])]], 3)
+  }
+  
+  # replace NAs with 0
+  mergeDF <- mergeDF %>% replace(is.na(.), 0)
+  
+  # return merged data.frame after ordering by 'Rank' in the first population
+  return(mergeDF[order(as.numeric(mergeDF$Rank.a)),])
+}
+fa_clusterLED <- function(fastaInput = NULL, minReads = 10, maxLED = 7, totalClusters = 30, multipleOutputs = F, outputDirectory = NULL, keepNC = T){
   # parameter check
   if(multipleOutputs == T & is.null(outputDirectory)){
     stop("Must provide directory to receive multiple outputs!")
@@ -753,72 +1506,20 @@ fa_clusterDiversity <- function(clusterFASTA = NULL){
   # return data.frame with clustering metadata
   return(merge(clDF_format, clusterStats, by = 'Cluster', all = T, sort = F))
 }
-fa_clusterEnrich <- function(clusterCSVs = NULL){
-  # read clustered CSVs
-  cluster1 <- read.csv(clusterCSVs[1])
-  cluster2 <- read.csv(clusterCSVs[2])
+fa_clusterEnrich <- function(clusterCSVs = NULL, fileNames = NULL){
+  # initialize list of formatted files
+  stackedDF <- data.frame()
   
-  if(length(clusterCSVs) == 3){
-    cluster3 <- read.csv(clusterCSVs[3]) %>%
-      rename(Cluster.z = Cluster, TotalSequences.z = TotalSequences, TotalReads.z = TotalReads, TotalRPM.z = TotalRPM)
-  }
-  
-  # merge by seed sequences
-  clusterMerge <- merge(cluster1, cluster2, by = 'Seeds', all = T)
-  if(length(clusterCSVs) == 3){
-    clusterMerge <- merge(clusterMerge, cluster3, by = 'Seeds', all = T)
-  }
-  clusterMerge <- na.omit(clusterMerge)
-  
-  
-  # calculate enrichment
-  clusterMerge$Enrichment_yx <- clusterMerge$TotalRPM.y / clusterMerge$TotalRPM.x
-  if(length(clusterCSVs) == 3){
-    clusterMerge$Enrichment_zy <- clusterMerge$TotalRPM.z / clusterMerge$TotalRPM.y
-    clusterMerge$Enrichment_zx <- clusterMerge$TotalRPM.z / clusterMerge$TotalRPM.x
+  # read and format all input files; store them as a list
+  for(i in 1:length(clusterCSVs)){
+    stackedDF <- rbind(
+      stackedDF,
+      read.csv(clusterCSVs[i]) %>% dplyr::mutate(., Population = i, FileName = fileNames[i])
+    )
   }
   
   # return data.frame after merging by cluster number in first population
-  return(clusterMerge[order(as.numeric(clusterMerge$Cluster.x)),])
-}
-fa_clusterEnrich_byCluster <- function(clusterCSV1 = NULL, clusterCSV2 = NULL, clusterCSV3 = NULL, keepNA = F,
-                                        csvOutput = NULL){
-  ## reads CSVs
-  cluster1 <- read.csv(clusterCSV1)
-  cluster2 <- read.csv(clusterCSV2)
-  if(!is.null(clusterCSV3)){
-    cluster3 <- read.csv(clusterCSV3)
-  }
-  
-  ## merge
-  clusterMerge <- merge(cluster1, cluster2, by = 'Cluster', all = T)
-  if(!is.null(clusterCSV3)){
-    clusterMerge <- merge(clusterMerge, cluster3, by = 'Cluster', all = T)
-  }
-  if(!keepNA){
-    clusterMerge <- na.omit(clusterMerge)
-  }
-  
-  ## calculate enrichment
-  clusterMerge$Enrichment_yx <- clusterMerge$TotalRPM.y / clusterMerge$TotalRPM.x
-  if(!is.null(clusterCSV3)){
-    clusterMerge$Enrichment_zy <- clusterMerge$TotalRPM.z / clusterMerge$TotalRPM.y
-    clusterMerge$Enrichment_zx <- clusterMerge$TotalRPM.z / clusterMerge$TotalRPM.x
-  }
-  
-  ## order by Cluster
-  clusterMerge[clusterMerge == 'NC'] <- NA
-  clusterMerge <- clusterMerge[order(as.numeric(clusterMerge$Cluster)),]
-  clusterMerge[is.na(clusterMerge)] <- 'NC'
-  
-  ## calculate distances between seeds
-  clusterMerge$SeedDistance_yx <- diag(adist(clusterMerge$Seeds.y, clusterMerge$Seeds.x))
-  if(!is.null(clusterCSV3)){
-    clusterMerge$SeedDistance_zy <- diag(adist(clusterMerge$Seeds.z, clusterMerge$Seeds.y))
-  }
-  
-  ## write the output
-  write.csv(clusterMerge, csvOutput, row.names = F, quote = F)
+  return(stackedDF)
 }
 
 ##### UI functions #####
@@ -861,15 +1562,6 @@ fa_motifTracker_scores <- function(RPM = NULL){
   
   # return list of enrichment scores
   return(unlist(enrichment))
-}
-fa_distance_outputName <- function(inputFile = NULL){
-  # add "-distance" to filename
-  fileName <- ifelse(sum(endsWith(toupper(inputFile), c("FASTA"))) > 0,
-                     sub(rightSubstr(inputFile, 6), "-distance.csv", inputFile),
-                     sub(rightSubstr(inputFile, 4), "-distance.csv", inputFile))
-  
-  # return output file name
-  return(fileName)
 }
 rightSubstr <- function(x, n){
   # return the last n characters of string
