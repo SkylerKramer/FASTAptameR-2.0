@@ -4,6 +4,7 @@
 ## imports
 library(shiny)
 library(shinyBS)
+library(shinyFiles)
 library(colourpicker)
 
 ## source file
@@ -573,7 +574,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                
                                                # slider for total number of desired clusters
                                                sliderInput("clusterSlider_totalClusters", label = h5("Total clusters:"),
-                                                           min = 0, max = 1000, value = 20, step = 5),
+                                                           min = 5, max = 1000, value = 20, step = 5),
                                                shinyBS::bsTooltip("clusterSlider_totalClusters", "Total number of desired clusters"),
                                                
                                                # button to optionally remove non-clustered sequences
@@ -596,7 +597,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                # directory input
                                                textInput("clusterInput_directory", "Directory path:", value = NULL),
                                                shinyBS::bsTooltip("clusterInput_directory",
-                                                                  "Only required if you want one cluster per file"),
+                                                                  "Only required if you want one cluster per file. Must use backward slashes (`/`)!"),
                                                
                                                # select file type for download
                                                radioButtons("clusterDownloadType", label = h5("FASTA or CSV download?"),
@@ -746,6 +747,40 @@ ui <- navbarPage("FASTAptameR 2.0",
                                       "."
                                   ))),
                                   
+                                  # availability section
+                                  h3("Availability"),
+                                  
+                                  # list of accession points
+                                  tags$ul(
+                                      tags$li(HTML(paste0(
+                                          "Website (direct access): ",
+                                          a(href = "https://fastaptamer2.missouri.edu/", "fastaptamer2.missouri.edu",
+                                            target = "blank")
+                                      ))),
+                                      
+                                      tags$li(HTML(paste0(
+                                          "Docker (local download of platform): ",
+                                          a(href = "https://hub.docker.com/repository/docker/skylerkramer/fastaptamer2", "skylerkramer/fastaptamer2",
+                                            target = "blank")
+                                      ))),
+                                      
+                                      tags$li(HTML(paste0(
+                                          "Github (code download): ",
+                                          a(href = "https://github.com/SkylerKramer/FASTAptameR-2.0/", "SkylerKramer/FASTAptameR-2.0",
+                                            target = "blank")
+                                      ))),
+                                      
+                                      tags$li(HTML(paste0(
+                                          "User guide: ",
+                                          a(href = "https://github.com/SkylerKramer/FASTAptameR-2.0/blob/main/UserGuide.pdf", "UserGuide.pdf",
+                                            target = "_blank")
+                                      )))
+                                  ),
+                                  
+                                  # citation
+                                  h3("Citation"),
+                                  p("If you use or modify FA2, please cite: CITATION."),
+                                  
                                   # contact section
                                   h3("Contact"),
                                   p(
@@ -767,61 +802,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                       ))),
                                       
                                       tags$li("Email: burkelab@missouri.edu, stk7c9@umsystem.edu")
-                                  ),
-                                  
-                                  # source section
-                                  h3("Source"),
-                                  p(
-                                      HTML(
-                                          paste0(
-                                              "Source code is available at ",
-                                              a(
-                                                  href = "https://github.com/SkylerKramer/FASTAptameR-2.0/",
-                                                  "SkylerKramer/FASTAptameR-2.0",
-                                                  target = "_blank"
-                                              )
-                                          )
-                                      ),
-                                      
-                                      HTML(
-                                          paste0(
-                                              "The program can be accessed from ",
-                                              a(
-                                                  href = "https://fastaptamer2.missouri.edu/",
-                                                  "here",
-                                                  target = "_blank"
-                                              ),
-                                              "."
-                                          )
-                                      ),
-                                      
-                                      HTML(
-                                          paste0(
-                                              "Finally, the program can be downloaded from ",
-                                              a(
-                                                  href = "https://hub.docker.com/repository/docker/skylerkramer/fastaptamer2",
-                                                  "skylerkramer/fastaptamer2",
-                                                  target = "_blank"
-                                              ),
-                                              " on Docker Hub."
-                                          )
-                                      ),
-                                      
-                                      HTML(
-                                          paste0(
-                                              "For an updated version of the user guide, follow this Github ",
-                                              a(
-                                                  href = "https://github.com/SkylerKramer/FASTAptameR-2.0/blob/main/UserGuide.pdf",
-                                                  "link",
-                                                  target = "_blank"
-                                              )
-                                          )
-                                      )
-                                  ),
-                                  
-                                  # citation
-                                  h3("Citation"),
-                                  p("If you use or modify FA2, please cite: CITATION.")
+                                  )
                               )
                           )
                  ),
@@ -1574,7 +1555,14 @@ server <- function(input, output, session) {
         } else if(isolate(input$clusterSlider_totalClusters == 0)){
             showNotification("Must generate at least one cluster to proceed!", type = "error", duration = NULL)
             return(NULL)
+        } else if(isolate(input$clusterButton_outputs) == "Yes" & isolate(input$clusterInput_directory) == ""){
+            showNotification("Must supply a directory if multiple outputs are desired!", type = "error", duration = NULL)
+            return(NULL)
+        } else if(isolate(input$clusterButton_outputs) == "Yes" & !dir.exists(isolate(input$clusterInput_directory))){
+            showNotification("Directory must already exist!", type = "error", duration = NULL)
+            return(NULL)
         } else{
+            
             # capture output
             withCallingHandlers({
                 shinyjs::html("clusterTextOutput", "")

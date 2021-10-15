@@ -1377,12 +1377,9 @@ fa_enrich <- function(fastaInputs = NULL, keepNA = FALSE){
   return(mergeDF[order(as.numeric(mergeDF$Rank.a)),])
 }
 fa_clusterLED <- function(fastaInput = NULL, minReads = 10, maxLED = 7, totalClusters = 30, multipleOutputs = F, outputDirectory = NULL, keepNC = T){
-  # parameter check
-  if(multipleOutputs == T & is.null(outputDirectory)){
-    stop("Must provide directory to receive multiple outputs!")
-  }
-  if(multipleOutputs == T & !dir.exists(outputDirectory)){
-    stop("Must provide valid directory path to receive multiple outputs!")
+  # format the output directory path for R
+  if(outputDirectory != "" & dir.exists(outputDirectory)){
+    outputDirectory <- outputDirectory
   }
   
   # read FASTA file and convert to data.frame; only keep sequences in which 'Reads' is greater than minReads
