@@ -724,10 +724,6 @@ ui <- navbarPage("FASTAptameR 2.0",
                           sidebarLayout(
                               sidebarPanel(
                                   # module connections
-                                  # p(
-                                  #     "FA2 is a flexible platform for population analysis. The following chord diagram shows all possible
-                                  #     module connections."
-                                  # ),
                                   div(img(src = "circosPlot.png", height = 500, width = 500), style = "text-align: center;")
                               ),
                               
@@ -753,7 +749,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                   # contact section
                                   h3("Contact"),
                                   p(
-                                      "FA2 is created and maintained by Skyler Kramer. To report bugs or request features, please use one of
+                                      "FA2 is maintained by Skyler Kramer and Donald Burke. To report bugs or request features, please use one of
                                       the following: "
                                   ),
                                   
