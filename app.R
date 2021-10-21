@@ -7,8 +7,16 @@ library(shinyBS)
 library(shinyFiles)
 library(colourpicker)
 
-## source file
-source("./Functions.R")
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(plotly)
+
+## source files
+source("./functions_support.R")
+source("./functions_plots.R")
+source("./functions_backend.R")
+source("./functions_ui.R")
 
 ## change limit for file sizes
 options(shiny.maxRequestSize=2000*1024^2)
@@ -318,7 +326,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                shinyBS::bsTooltip("motifInput_query", "Please supply one motif or sequence of interest per line."),
                                                
                                                # ask for aliases
-                                               textAreaInput("motifInput_alias", label = h5("Alias list:")),
+                                               textAreaInput("motifInput_alias", label = h5("Alias list (1 per line):")),
                                                shinyBS::bsTooltip("motifInput_alias", "User-defined IDs for queries."),
                                                
                                                # radio buttons for nt or aa searching
@@ -826,7 +834,7 @@ server <- function(input, output, session) {
             # capture output
             withCallingHandlers({
                 shinyjs::html("countTextOutput", "")
-                fa_count3(dataInput = ifelse(!is.null(isolate(input$countInput$datapath)),
+                fa_count(dataInput = ifelse(!is.null(isolate(input$countInput$datapath)),
                                             isolate(input$countInput$datapath),
                                             isolate(input$countInput_URL)))
             },
@@ -1403,7 +1411,7 @@ server <- function(input, output, session) {
         })
     })
     
-    ## SEQUENCE ENRICHMENT - PREP DATA FOR MA PLOTS
+    ## SEQUENCE ENRICHMENT - PREP DATA FOR RA PLOTS
     enrich_raDataPrep <- eventReactive(input$raStart, {
         if(is.null(enrichDF())){
             return(NULL)
@@ -1426,7 +1434,7 @@ server <- function(input, output, session) {
         }
     })
     
-    ## SEQUENCE ENRICHMENT - DISPLAY DATA FOR MA PLOTS
+    ## SEQUENCE ENRICHMENT - DISPLAY DATA FOR RA PLOTS
     observeEvent(input$raStart, {
         output$raOutput <- renderUI({
             # plot requires prepped data
