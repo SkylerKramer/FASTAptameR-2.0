@@ -1,7 +1,6 @@
 #' This function takes a FASTQ/A file and counts the number of unique sequences
 #' These counts and other summary statistics are returned as a dataframe
 fa_count <- function(dataInput = NULL){
-  showNotification("YEYEYEYEYE", type = "error", duration = NULL)
   # get start time
   startTime <- Sys.time()
   

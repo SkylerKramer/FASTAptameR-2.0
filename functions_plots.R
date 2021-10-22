@@ -720,8 +720,8 @@ fa_clusterDiversity_metaplot <- function(diversityDF = NULL){
                    yaxis = list(title = "Average LED to Cluster Seed"))
 
   # make interactive figure from subplots
-  fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3, height = 600) %>%
-    plotly::layout(title = "Cluster Metaplots", showlegend = FALSE)
+  fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3) %>%
+    plotly::layout(title = "Cluster Metaplots", showlegend = FALSE, height = 600)
   
   # return interactive figure
   return(fig)

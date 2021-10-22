@@ -93,7 +93,7 @@ fa_translate_mapping <- function(inputChanges = "", translateSelection = "Standa
   
   # select appropriate filepath for JSON file
   filepath <- switch(
-    selection,
+    translateSelection,
     "Standard" = "trans/translations_standard.json",
     "Vertebrate mitochondrial" = "trans/translations_vertMito.json",
     "Yeast mitochondrial" = "trans/translations_yeastMito.json",
