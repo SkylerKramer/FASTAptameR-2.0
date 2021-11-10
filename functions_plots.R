@@ -692,8 +692,14 @@ fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, topClu
   kmerPCA <- prcomp(kmerMatrix, scale. = F)
   
   # make plot
-  kmerPCA_plot <- factoextra::fviz_pca_ind(kmerPCA, addEllipses = F, geom = c("point"), col.ind = as.factor(clusterDF$Cluster)) +
-    ggplot2::labs(color="Cluster") + ggplot2::theme_classic()
+  kmerPCA_plot <- factoextra::fviz_pca_ind(
+    kmerPCA,
+    addEllipses = F, geom = c("point"),
+    col.ind = as.factor(clusterDF$Cluster), legend.title = "Cluster"
+  ) +
+    #ggplot2::labs(color="Cluster") +
+    #ggplot2::guides(colour = ggplot2::guide_legend(title = "Cluster")) +
+    ggplot2::theme_classic()
   
   # return interactive PCA plot
   return(plotly::ggplotly(kmerPCA_plot))
@@ -720,8 +726,8 @@ fa_clusterDiversity_metaplot <- function(diversityDF = NULL){
                    yaxis = list(title = "Average LED to Cluster Seed"))
 
   # make interactive figure from subplots
-  fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3) %>%
-    plotly::layout(title = "Cluster Metaplots", showlegend = FALSE, height = 600)
+  fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3, height = 600) %>%
+    plotly::layout(title = "Cluster Metaplots", showlegend = FALSE)
   
   # return interactive figure
   return(fig)
