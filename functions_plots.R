@@ -11,7 +11,7 @@ fa_count_rpr <- function(countData = NULL, minReads = NULL, maxRanks = NULL){
   
   # make plot
   p <- ggplot2::ggplot(seqCounts, ggplot2::aes(x = SequenceRank, y = Reads, group = 1)) +
-    ggplot2::geom_line(colour = "skyblue") +
+    ggplot2::geom_line(colour = "skyblue", size = 2) +
     ggplot2::labs(x = "Ranks of unique sequences", y = "Total reads per unique sequence") +
     ggplot2::theme_classic()
   
@@ -217,7 +217,7 @@ fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
   # distance histogram with unique sequences
   p1 <- ggplot2::ggplot(distanceData, ggplot2::aes(Distance)) +
     ggplot2::geom_bar(fill = "skyblue", colour = "black") +
-    ggplot2::xlab("Distance") + ggplot2::ylab("Number of unique sequences") +
+    ggplot2::xlab("Distance from Query") + ggplot2::ylab("Number of unique sequences") +
     ggplot2::theme_classic() + ggplot2::theme(text = ggplot2::element_text(size = 15))
   
   p1 <- p1 %>%
@@ -235,7 +235,7 @@ fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
       
       ggplot2::ggplot(ggplot2::aes(x = Distance, y = TotalReads)) +
       ggplot2::geom_bar(stat = "identity", fill = "skyblue", colour = "black") +
-      ggplot2::xlab("Distance") + ggplot2::ylab("Total number of reads") +
+      ggplot2::xlab("Distance from Query") + ggplot2::ylab("Total number of reads") +
       ggplot2::theme_classic() + ggplot2::theme(text = ggplot2::element_text(size = 15))
     
     p2 <- p2 %>%
@@ -244,8 +244,8 @@ fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
                        text = querySequence, textfont = list(size = 12))
     
     # return interactive histogram
-    return(plotly::subplot(p1, p2, titleY = T, titleX = T, nrows = 2, margin = 0.1) %>%
-             plotly::layout(title = "Distance Histogram", showlegend = F, height = 600, margin = list(t = 50)))
+    return(plotly::subplot(p1, p2, titleY = T, titleX = T, nrows = 2, margin = 0.1, shareX = TRUE) %>%
+             plotly::layout(title = "Distance Histograms", showlegend = F, height = 600, margin = list(t = 50)))
   }
 }
 
@@ -416,16 +416,20 @@ fa_enrich_clusterBoxplots <- function(df = NULL){
 }
 
 #' This function creates a bar plot to show the average enrichment of non-reference residues at each position of a reference sequence
-fa_enrich_avgSequenceBar <- function(dataPath = NULL, refSeq = NULL, enrichRange = c(0,5), seqType = "Nucleotide", modList = "",
-                                     lowCol = "red2", midCol = "gold", highCol = "yellow"){
+fa_enrich_avgSequenceBar <- function(
+  dataPath = NULL, refSeq = NULL, enrichRange = c(0,5), seqType = "Nucleotide", modList = "",
+  lowCol = "red2", midCol = "gold", highCol = "yellow", breakpoints = c()
+){
   # nucleotides or amino acids
   if(seqType == "Nucleotide"){
     charList <- c("A", "C", "G", "T", "U")
   } else if(seqType == "AminoAcid"){
-    charList <- c("*",
-                  "A", "C", "F", "G", "I", "L", "M", "P", "V",
-                  "W", "N", "Q", "S", "T", "Y",
-                  "H", "K", "R", "D", "E")
+    charList <- c(
+      "*",
+      "A", "C", "F", "G", "I", "L", "M", "P", "V",
+      "W", "N", "Q", "S", "T", "Y",
+      "H", "K", "R", "D", "E"
+    )
   } else{
     message("seqType must be one of Nucleotide or AminoAcid!")
     return(NULL)
@@ -485,9 +489,11 @@ fa_enrich_avgSequenceBar <- function(dataPath = NULL, refSeq = NULL, enrichRange
     )
   
   # initialize matrix; rows are charLists and cols are the positions of the WT seq
-  hmDF <- matrix(data = NA, nrow = length(charList), ncol = seqLength,
-                 dimnames = list(charList,
-                                 unlist(stringr::str_split(refSeq, pattern = ""))))
+  hmDF <- matrix(
+    data = NA,
+    nrow = length(charList), ncol = seqLength,
+    dimnames = list(charList, unlist(stringr::str_split(refSeq, pattern = "")))
+  )
   
   # iterate through each position of the WT seq
   for(i in 1:seqLength){
@@ -523,23 +529,51 @@ fa_enrich_avgSequenceBar <- function(dataPath = NULL, refSeq = NULL, enrichRange
     dplyr::group_by(refSeq) %>%
     dplyr::summarize(AvEnrich = mean(Enrichment, na.rm = T))
   
-  p <- ggplot2::ggplot(dta_average, ggplot2::aes(refSeq, AvEnrich, fill = AvEnrich, text = glue::glue(
-    "
+  # add min and max possible values, sort, and omit duplicates
+  breakpoints_mod <- c(1, as.numeric(breakpoints), length(refSeq_formatted)) %>% sort() %>% unique()
+  
+  # get mean of AvEnrich between each pair of breakpoints
+  bpMeans <- lapply(
+    2:length(breakpoints_mod),
+    function(x) dta_average$AvEnrich[breakpoints_mod[x-1]:breakpoints_mod[x]] %>% mean()
+  ) %>% unlist()
+  
+  # make bar plot of average enrichment per position
+  p <- ggplot2::ggplot(
+    dta_average, ggplot2::aes(refSeq, AvEnrich, fill = AvEnrich, text = glue::glue(
+      "
     WT charList: {refSeq}
     Average Enrichment: {AvEnrich}
     "
-  ))) +
+    ))
+  ) +
     ggplot2::geom_bar(stat = "identity") +
     ggplot2::scale_x_discrete(labels = gsub("_.*", "", refSeq_formatted)) +
-    ggplot2::scale_fill_gradient2(midpoint = quantile(dta_average$AvEnrich, 0.65, na.rm = T),
-                                  low = lowCol, mid = midCol, high = highCol) +
-    ggplot2::labs(x = "Reference Sequence",
-                  y = "Avg. Enrichment of Non-Reference Residues",
-                  title = "Average Enrichment per Position",
-                  fill = "Average\nEnrichment") +
+    ggplot2::scale_fill_gradient2(
+      midpoint = quantile(dta_average$AvEnrich, 0.65, na.rm = T),
+      low = lowCol, mid = midCol, high = highCol
+    ) +
+    ggplot2::geom_vline(xintercept = breakpoints_mod, linetype = "dotted") +
+    ggplot2::labs(
+      x = "Reference Sequence",
+      y = "Avg. Enrichment of Non-Reference Residues",
+      title = "Average Enrichment per Position",
+      fill = "Average\nEnrichment"
+    ) +
     ggplot2::theme_classic()
   
-  return(plotly::ggplotly(p, tooltip = "text"))
+  # iterate through breakpoints to add average bar to each segment
+  for(i in 2:length(breakpoints_mod)){
+    p <- p + geom_segment(
+      x = breakpoints_mod[i-1], xend = breakpoints_mod[i],
+      y = bpMeans[i-1], yend = bpMeans[i-1]
+    )
+  }
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p, tooltip = "text")
+  
+  return(fig)
 }
 
 #' This function creates a heat map to show the average enrichment of non-reference residues at each position of a reference sequence,

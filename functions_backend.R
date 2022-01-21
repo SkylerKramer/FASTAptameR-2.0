@@ -324,6 +324,41 @@ fa_motif_sequenceTracker <- function(fastaInputs = NULL, fileNames = NULL, query
   return(targetDF)
 }
 
+#' This function reports the query enrichment from motifTracker or sequenceTracker
+fa_motif_trackerEnrichment <- function(trackerDF = NULL){
+  # ungroup data.frame
+  trackerDF <- trackerDF %>% dplyr::ungroup()
+  
+  # rename 3rd column (either seqs or Motif) to Query
+  colnames(trackerDF)[3] <- "Query"
+  
+  # initialize empty data.frame to hold enrichment scores
+  enrichmentDF <- data.frame()
+  
+  # fill enrichmentDF with one query at a time
+  for(query in unique(trackerDF$Query)){
+    
+    # split tibble by query
+    temp <- trackerDF[which(trackerDF$Query == query),] %>% as.data.frame()
+    
+    # iterate through each consecutive population pair
+    for(i in 2:nrow(temp)){
+      
+      # fill enrichmentDF with comparisons and corresponding enrichments
+      enrichmentDF <- rbind(
+        enrichmentDF, data.frame(
+          Comparison = paste0(temp$FileName[i], " : ", temp$FileName[i-1]),
+          Query = query,
+          Alias = temp$Alias[i],
+          Enrichment = temp[i, ncol(temp)] / temp[i-1, ncol(temp)]
+        )
+      )
+    }
+  }
+  
+  return(enrichmentDF)
+}
+
 #' This function computes the LED between a query sequence and every other sequence in the target file
 fa_distance <- function(dataInput = NULL, querySequence = NULL, seqRange = c(1, 1000)){
   # read file
@@ -412,7 +447,7 @@ fa_enrich <- function(fastaInputs = NULL, keepNA = FALSE){
   }
   
   # replace NAs with 0
-  mergeDF <- mergeDF %>% replace(is.na(.), 0)
+  mergeDF <- mergeDF %>% replace(is.na(.), 0.01)
   
   # return merged data.frame after ordering by 'Rank' in the first population
   return(mergeDF[order(as.numeric(mergeDF$Rank.a)),])
@@ -564,4 +599,43 @@ fa_clusterEnrich <- function(clusterCSVs = NULL, fileNames = NULL){
   
   # return data.frame after merging by cluster number in first population
   return(stackedDF)
+}
+
+#' This function computes the enrichment of clusters across multiple rounds
+fa_clusterEnrich_tracker <- function(trackerDF = NULL){
+# rename 2nd column (either seqs or Motif) to Query
+colnames(trackerDF)[2] <- "Query"
+
+# ungroup data.frame, omit NAs, sort by Query, and omit any queries that are not duplicated
+trackerDF <- trackerDF %>%
+  dplyr::ungroup() %>%
+  na.omit() %>%
+  dplyr::arrange(Query) %>%
+  subset(., duplicated(Query) | duplicated(Query, fromLast = TRUE))
+
+# initialize empty data.frame to hold enrichment scores
+enrichmentDF <- data.frame()
+
+# fill enrichmentDF with one query at a time
+for(query in unique(trackerDF$Query)){
+  
+  # split tibble by query
+  temp <- trackerDF[which(trackerDF$Query == query),] %>% as.data.frame()
+  
+  # iterate through each consecutive population pair
+  for(i in 2:nrow(temp)){
+    
+    # fill enrichmentDF with comparisons and corresponding enrichments; column 4 is TotalRPM
+    enrichmentDF <- rbind(
+      enrichmentDF, data.frame(
+        Comparison = paste0(temp$FileName[i], " : ", temp$FileName[i-1]),
+        Query = query,
+        Enrichment = temp$TotalRPM[i] / temp$TotalRPM[i-1]
+      )
+    )
+  }
+}
+
+# return DF
+return(enrichmentDF)
 }

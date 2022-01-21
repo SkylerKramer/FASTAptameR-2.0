@@ -58,9 +58,6 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                 '.FASTA', '.FA', '.fasta', '.fa'
                                             )),
                                   
-                                  # file upload warning
-                                  strong("*Do not start until loading bar shows 'Upload complete'."),
-                                  
                                   # optional file upload via github
                                   textInput("countInput_URL", label = h5("Online source:"),
                                             value = "https://raw.githubusercontent.com/SkylerKramer/AptamerLibrary/main/sample100.fastq"),
@@ -77,6 +74,9 @@ ui <- navbarPage("FASTAptameR 2.0",
                                   
                                   # download button
                                   downloadButton("countDownload", label = h5("Download"), style='padding:2px; font-size:80%'),
+                                  
+                                  # file upload warning
+                                  strong("*Do not start until loading bar shows 'Upload complete'."),
                                   
                                   # Count messages
                                   strong(uiOutput("countUI_seqCounts")),
@@ -192,7 +192,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                   shinyBS::bsTooltip("translateSelection", "Which code should be used for translating?"),
                                   
                                   # radio buttons for non-standard translations
-                                  radioButtons("nonstandardTranslations", label = h5("Do you want to use non-standard translations?"),
+                                  radioButtons("nonstandardTranslations", label = h5("Do you want to customize the translation table?"),
                                                choices = c("Yes","No"), selected = "No", inline = TRUE),
                                   
                                   # only show this panel if the user wants to use non-standard translations
@@ -322,11 +322,11 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                               choices = "*", multiple = TRUE),
                                                
                                                # ask for motif
-                                               textAreaInput("motifInput_query", label = h5("Motif or sequence list:"), height = '300px'),
+                                               textAreaInput("motifInput_query", label = h5("Motif or sequence list:"), height = '100px'),
                                                shinyBS::bsTooltip("motifInput_query", "Please supply one motif or sequence of interest per line."),
                                                
                                                # ask for aliases
-                                               textAreaInput("motifInput_alias", label = h5("Alias list (1 per line):")),
+                                               textAreaInput("motifInput_alias", label = h5("Alias list (1 per line):"), height = '100px'),
                                                shinyBS::bsTooltip("motifInput_alias", "User-defined IDs for queries."),
                                                
                                                # radio buttons for nt or aa searching
@@ -347,17 +347,19 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                ),
                                                
                                                # start button
-                                               actionButton("motifTrackerStart", label = h5("Start"),
-                                                            style='padding:11px; font-size:80%'),
+                                               actionButton("motifTrackerStart", label = h5("Start"), style='padding:11px; font-size:80%'),
                                                
-                                               # download button
-                                               downloadButton("motifTrackerDownload", label = h5("Download"),
-                                                              style='padding:2px; font-size:80%')
+                                               # download button for summary
+                                               downloadButton("motifTrackerDownload_summary", label = h5("Download Summary"), style='padding:2px; font-size:80%'),
+                                               
+                                               # download button for enrich
+                                               downloadButton("motifTrackerDownload_enrich", label = h5("Download Enrichments"), style='padding:2px; font-size:80%')
                                            ),
                                            
                                            # display distance output as datatable
                                            mainPanel(
                                                shinycssloaders::withSpinner(DT::dataTableOutput("motifTrackerOutput")),
+                                               shinycssloaders::withSpinner(DT::dataTableOutput("motifTrackerOutput_enrichmentTable")),
                                                shinycssloaders::withSpinner(plotly::plotlyOutput("motifTrackerPlot"))
                                            )
                                        )
@@ -379,7 +381,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                   shinyBS::bsTooltip("querySequence", "Sequence of interest"),
                                   
                                   # sequence trunation range; allows user to truncate sequences
-                                  sliderInput("distanceTruncRange", label = h5("Sequence range:"),
+                                  sliderInput("distanceTruncRange", label = h5("Sequence range to be analyzed:"),
                                               min = 1, max = 300, value = c(1, 300), step = 1),
                                   shinyBS::bsTooltip("distanceTruncRange", "Adjust this range if you want to consider specific regions in your sequence."),
                                   
@@ -498,7 +500,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                               ),
                               
                               tabPanel(
-                                  "Positional Enrichment",
+                                  "Position Enrichment",
                                   
                                   sidebarLayout(
                                       sidebarPanel(
@@ -544,6 +546,10 @@ ui <- navbarPage("FASTAptameR 2.0",
                                           colourpicker::colourInput("midCol", "Select middle colour", "gold", returnName = TRUE),
                                           colourpicker::colourInput("highCol", "Select high colour", "yellow", returnName = TRUE),
                                           
+                                          # text input for users to change breaks
+                                          textAreaInput("posEnrich_breakpoints", label = h5("Comma-separated breakpoints."), placeholder = "10,100,1000"),
+                                          shinyBS::bsTooltip("posEnrich_breakpoints", "For example: 7,47."),
+                                          
                                           # plot start
                                           actionButton("posEnrich_start", label = h5("Start"), style='padding:11px; font-size:80%'),
                                           shinyBS::bsTooltip("posEnrich_start", "Show plots of enrichment per position.")
@@ -581,7 +587,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                shinyBS::bsTooltip("clusterSlider_maxLED", "Max. edit distance from seed sequence"),
                                                
                                                # slider for total number of desired clusters
-                                               sliderInput("clusterSlider_totalClusters", label = h5("Total clusters:"),
+                                               sliderInput("clusterSlider_totalClusters", label = h5("Max. number of clusters to generate:"),
                                                            min = 5, max = 1000, value = 20, step = 5),
                                                shinyBS::bsTooltip("clusterSlider_totalClusters", "Total number of desired clusters"),
                                                
@@ -592,7 +598,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                                   "Non-clustered sequences will have NC in their IDs."),
                                                
                                                # button to determine number of desired outputs
-                                               radioButtons("clusterButton_outputs", label = h5("One file per cluster?"),
+                                               radioButtons("clusterButton_outputs", label = h5("Write output to one file per cluster?"),
                                                             choices = c("Yes","No"), selected = "No", inline = TRUE),
                                                shinyBS::bsTooltip("clusterButton_outputs",
                                                                   "One file per cluster (Yes) or one file for all clusters (No)"),
@@ -614,12 +620,10 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                          "FASTA is required for subsequent modules; CSV retains all features from data table"),
                                                
                                                # start button
-                                               actionButton("clusterStart", label = h5("Start"),
-                                                            style='padding:11px; font-size:80%'),
+                                               actionButton("clusterStart", label = h5("Start"), style='padding:11px; font-size:80%'),
                                                
-                                               # download button
-                                               downloadButton("clusterDownload", label = h5("Download"),
-                                                              style='padding:2px; font-size:80%'),
+                                               # download button for summary
+                                               downloadButton("clusterDownload", label = h5("Download"), style='padding:2px; font-size:80%'),
                                                
                                                # show console output
                                                shinyjs::useShinyjs(),
@@ -677,7 +681,7 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                
                                                # select value of k for kmer PCA
                                                radioButtons("kmerPCAButton_keepNC", label = h5("Keep non-clustered sequences?"),
-                                                            choices = c("Yes", "No"), selected = "Yes", inline = TRUE),
+                                                            choices = c("Yes", "No"), selected = "No", inline = TRUE),
                                                shinyBS::bsTooltip("kmerPCAButton_keepNC",
                                                                   "If Yes, keep top N clusters AND the non-clustered sequences."), 
                                                
@@ -710,17 +714,19 @@ ui <- navbarPage("FASTAptameR 2.0",
                                                               choices = "*", multiple = TRUE),
                                                
                                                # start button
-                                               actionButton("clusterEnrichStart", label = h5("Start"),
-                                                            style='padding:11px; font-size:80%'),
+                                               actionButton("clusterEnrichStart", label = h5("Start"), style='padding:11px; font-size:80%'),
                                                
-                                               # download button
-                                               downloadButton("clusterEnrichDownload", label = h5("Download"),
-                                                              style='padding:2px; font-size:80%')
+                                               # download button for summary
+                                               downloadButton("clusterEnrichDownload_summary", label = h5("Download Summary"), style='padding:2px; font-size:80%'),
+                                               
+                                               # download button for enrich
+                                               downloadButton("clusterEnrichDownload_enrich", label = h5("Download Enrichments"), style='padding:2px; font-size:80%')
                                            ),
                                            
                                            # display count output as datatable
                                            mainPanel(
                                                shinycssloaders::withSpinner(DT::dataTableOutput("clusterEnrichOutput")),
+                                               shinycssloaders::withSpinner(DT::dataTableOutput("clusterEnrichOutput_enrichTable")),
                                                shinycssloaders::withSpinner(plotly::plotlyOutput("clusterEnrichTrackingOutput"))
                                            )
                                        ))
@@ -1160,10 +1166,10 @@ server <- function(input, output, session) {
     ))
     
     ## MOTIF TRACKER - DATA DOWNLOAD
-    output$motifTrackerDownload <- downloadHandler(
+    output$motifTrackerDownload_summary <- downloadHandler(
         # set filename
         filename = function(){
-            "motifTracker.csv"
+            "motifTracker_summary.csv"
         },
         
         # set file content
@@ -1171,6 +1177,35 @@ server <- function(input, output, session) {
             # format data for output as CSV file
             write.csv(motifTrackerDF(), file, row.names = FALSE, quote = FALSE)
         }
+    )
+    
+    ## MOTIF TRACKER - ENRICHMENT GENERATION
+    motifTrackerDF_enrich <- eventReactive(input$motifTrackerStart, {
+      if(is.null(motifTrackerDF())){
+        return(NULL)
+      } else{
+        fa_motif_trackerEnrichment(trackerDF = motifTrackerDF())
+      }
+    })
+    
+    ## MOTIF TRACKER - ENRICHMENT DISPLAY
+    output$motifTrackerOutput_enrichmentTable <- DT::renderDataTable(DT::datatable({
+      motifTrackerDF_enrich()
+    }, rownames = FALSE
+    ))
+    
+    ## MOTIF TRACKER - ENRICHMENT DOWNLOAD
+    output$motifTrackerDownload_enrich <- downloadHandler(
+      # set filename
+      filename = function(){
+        "motifTracker_enrich.csv"
+      },
+      
+      # set file content
+      content = function(file){
+        # format data for output as CSV file
+        write.csv(motifTrackerDF_enrich(), file, row.names = FALSE, quote = FALSE)
+      }
     )
     
     ## MOTIF TRACKER - PLOT GENERATION
@@ -1193,6 +1228,17 @@ server <- function(input, output, session) {
         } else{
             trackerPlot()
         }
+    })
+    
+    ## DISTANCE - UPDATE SLIDER BAR
+    observe({
+      updateSliderInput(
+        session = session,
+        inputId = "distanceTruncRange",
+        min = 1, max = nchar(input$querySequence), 
+        value = c(1, nchar(input$querySequence)),
+        step = 1
+      )
     })
     
     ## DISTANCE - DATA GENERATION
@@ -1508,12 +1554,15 @@ server <- function(input, output, session) {
             showNotification("No reference sequence provided!", type = "error", duration = NULL)
             return(NULL)
         } else{
-            fa_enrich_avgSequenceBar(dataPath = isolate(input$posEnrichInput$datapath),
-                                     refSeq = isolate(input$posEnrich_refSequence),
-                                     modList = isolate(input$posEnrich_mods),
-                                     seqType = isolate(input$posEnrich_seqType),
-                                     enrichRange = isolate(input$slider_enrichmentRange),
-                                     lowCol = isolate(input$lowCol), midCol = isolate(input$midCol), highCol = isolate(input$highCol))
+            fa_enrich_avgSequenceBar(
+              dataPath = isolate(input$posEnrichInput$datapath),
+              refSeq = isolate(input$posEnrich_refSequence),
+              modList = isolate(input$posEnrich_mods),
+              seqType = isolate(input$posEnrich_seqType),
+              enrichRange = isolate(input$slider_enrichmentRange),
+              lowCol = isolate(input$lowCol), midCol = isolate(input$midCol), highCol = isolate(input$highCol),
+              breakpoints = isolate(input$posEnrich_breakpoints) %>% strsplit(",") %>% unlist() %>% as.numeric()
+            )
         }
     })
     
@@ -1741,16 +1790,43 @@ server <- function(input, output, session) {
     }, filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
     ))
     
-    ## CLUSTER ENRICH - DATA DOWNLOAD
-    output$clusterEnrichDownload <- downloadHandler(
+    ## CLUSTER ENRICH - SUMMARY DOWNLOAD
+    output$clusterEnrichDownload_summary <- downloadHandler(
         # set filename
-        filename = "clusterEnrich.csv",
+        filename = "clusterEnrich_summary.csv",
         
         # set file content
         content = function(file){
             # format data for output as CSV file
             write.csv(clusterEnrichDF()[input[["clusterEnrichOutput_rows_all"]],], file, row.names = FALSE, quote = FALSE)
         }
+    )
+    
+    ## CLUSTER ENRICH - ENRICHMENT COMPUTATION
+    clusterEnrichOutput_enrichDF <- eventReactive(input$clusterEnrichStart, {
+      if(is.null(clusterEnrichDF())){
+        return(NULL)
+      } else{
+        fa_clusterEnrich_tracker(trackerDF = clusterEnrichDF())
+      }
+    })
+    
+    ## CLUSTER ENRICH - DATA OUTPUT FOR ENRICHMENT TABLE
+    output$clusterEnrichOutput_enrichTable <- DT::renderDataTable(DT::datatable({
+      clusterEnrichOutput_enrichDF()
+    }, filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
+    ))
+    
+    ## CLUSTER ENRICH - ENRICH DOWNLOAD
+    output$clusterEnrichDownload_enrich <- downloadHandler(
+      # set filename
+      filename = "clusterEnrich_enrich.csv",
+      
+      # set file content
+      content = function(file){
+        # format data for output as CSV file
+        write.csv(clusterEnrichOutput_enrichDF()[input[["clusterEnrichOutput_enrichDF_rows_all"]],], file, row.names = FALSE, quote = FALSE)
+      }
     )
     
     ## CLUSTER ENRICH - RENDER LINE PLOT
