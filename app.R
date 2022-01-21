@@ -802,6 +802,12 @@ ui <- navbarPage("FASTAptameR 2.0",
                                       the following: "
                                   ),
                                   
+                                  # contact section
+                                  h3("Last update"),
+                                  p(
+                                    "The most recent version of FA2 is from Jan. 21, 2022."
+                                  ),
+                                  
                                   # list of contacts
                                   tags$ul(
                                       tags$li(HTML(paste0(
