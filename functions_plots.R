@@ -1,3 +1,24 @@
+#' This function makes text in ggplot2 objects bold
+boldPlots <- function(p = NULL){
+  # adjust theme
+  p <- p +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(size=14, face= "bold", colour= "black" ),
+      axis.title.x = ggplot2::element_text(size=14, face="bold", colour = "black"),    
+      axis.title.y = ggplot2::element_text(size=14, face="bold", colour = "black"),    
+      axis.text.x = ggplot2::element_text(size=12, face="bold", colour = "black"), 
+      axis.text.y = ggplot2::element_text(size=12, face="bold", colour = "black"),
+      strip.text.x = ggplot2::element_text(size = 10, face="bold", colour = "black" ),
+      strip.text.y = ggplot2::element_text(size = 10, face="bold", colour = "black"),
+      axis.line.x = ggplot2::element_line(color="black", size = 0.3),
+      axis.line.y = ggplot2::element_line(color="black", size = 0.3),
+      panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=0.3)
+    )
+  
+  # return modified plot
+  return(p)
+}
+
 #' This function makes a line plot showing the relationship between rank and reads
 fa_count_rpr <- function(countData = NULL, minReads = NULL, maxRanks = NULL){
   # make data.frame by breaking 'id' column into 'Reads' and 'Ranks'; filter by minReads and maxRanks
@@ -15,6 +36,9 @@ fa_count_rpr <- function(countData = NULL, minReads = NULL, maxRanks = NULL){
     ggplot2::labs(x = "Ranks of unique sequences", y = "Total reads per unique sequence") +
     ggplot2::theme_classic()
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
   # make interactive figure
   fig <- plotly::ggplotly(p)
   
@@ -29,7 +53,7 @@ fa_count_histogram <- function(countData = NULL){
     ggplot2::geom_bar(fill = "skyblue", colour = "black") +
     ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1) +
     ggplot2::xlab("Sequence length") + ggplot2::ylab("Number of unique sequences") +
-    ggplot2::theme_classic() + ggplot2::theme(text = ggplot2::element_text(size = 15))
+    ggplot2::theme_classic()
   
   p2 <- countData %>%
     dplyr::group_by(Length) %>%
@@ -39,11 +63,18 @@ fa_count_histogram <- function(countData = NULL){
     ggplot2::geom_bar(stat = "identity", fill = "skyblue", colour = "black") +
     ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1) +
     ggplot2::xlab("Sequence length") + ggplot2::ylab("Total number of reads") +
-    ggplot2::theme_classic() + ggplot2::theme(text = ggplot2::element_text(size = 15))
+    ggplot2::theme_classic()
+  
+  # make bold plots
+  p1 <- boldPlots(p = p1)
+  p2 <- boldPlots(p = p2)
+  
+  # make interactive figure
+  fig <- plotly::subplot(plotly::ggplotly(p1), plotly::ggplotly(p2), titleY = T, titleX = T, nrows = 2, margin = 0.1) %>%
+    plotly::layout(title = "<b>Sequence-Length Histogram</b>", showlegend = F, margin = list(t = 50))
   
   # return interactive plot
-  return(plotly::subplot(plotly::ggplotly(p1), plotly::ggplotly(p2), titleY = T, titleX = T, nrows = 2, margin = 0.1) %>%
-           plotly::layout(title = "Sequence-Length Histogram", showlegend = F, height = 600, margin = list(t = 50)))
+  return(fig)
 }
 
 #' This function bins sequences by read counts
@@ -114,8 +145,14 @@ fa_count_binnedAbundance <- function(countData = NULL, useSingleton = TRUE, brea
     ggplot2::theme_classic() +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p)
+  
   # return interactive figure
-  return(plotly::ggplotly(p, height = 600))
+  return(fig)
 }
 
 #' This function creates a line plot of motif abundance across populations
@@ -160,8 +197,14 @@ fa_motif_motifTrackerPlot <- function(targetDF = NULL){
     ggplot2::labs(x = "Population", y = "Total RPM", title = "Motif Tracker") +
     ggplot2::theme_classic()
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2))
+  
   # return interactive figure
-  return(plotly::ggplotly(p, height = 500, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2)))
+  return(fig)
 }
 
 #' This function creates a line plot of sequence abundance across populations
@@ -208,8 +251,14 @@ fa_motif_sequenceTrackerPlot <- function(targetDF = NULL){
     ggplot2::labs(x = "Population", y = "RPM", title = "Sequence Tracker") +
     ggplot2::theme_classic()
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2))
+  
   # return interactive figure
-  return(plotly::ggplotly(p, height = 500, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2)))
+  return(fig)
 }
 
 #' This function creates two histograms of distance: 1) for unique sequences and 2) for all reads
@@ -218,7 +267,10 @@ fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
   p1 <- ggplot2::ggplot(distanceData, ggplot2::aes(Distance)) +
     ggplot2::geom_bar(fill = "skyblue", colour = "black") +
     ggplot2::xlab("Distance from Query") + ggplot2::ylab("Number of unique sequences") +
-    ggplot2::theme_classic() + ggplot2::theme(text = ggplot2::element_text(size = 15))
+    ggplot2::theme_classic()
+  
+  # make bold text
+  p1 <- boldPlots(p = p1)
   
   p1 <- p1 %>%
     plotly::ggplotly() %>%
@@ -236,16 +288,22 @@ fa_distance_histogram <- function(distanceData = NULL, querySequence = NULL){
       ggplot2::ggplot(ggplot2::aes(x = Distance, y = TotalReads)) +
       ggplot2::geom_bar(stat = "identity", fill = "skyblue", colour = "black") +
       ggplot2::xlab("Distance from Query") + ggplot2::ylab("Total number of reads") +
-      ggplot2::theme_classic() + ggplot2::theme(text = ggplot2::element_text(size = 15))
+      ggplot2::theme_classic()
+    
+    # make bold text
+    p2 <- boldPlots(p = p2)
     
     p2 <- p2 %>%
       plotly::ggplotly() %>%
       plotly::add_text(x = mean(distanceData$Distance), y = max(ggplot2::ggplot_build(p2)$data[[1]]$ymax),
                        text = querySequence, textfont = list(size = 12))
     
+    # make interactive figure
+    fig <- plotly::subplot(p1, p2, titleY = T, titleX = T, nrows = 2, margin = 0.1, shareX = TRUE) %>%
+      plotly::layout(title = "<b>Distance Histograms</b>", showlegend = F, margin = list(t = 50))
+    
     # return interactive histogram
-    return(plotly::subplot(p1, p2, titleY = T, titleX = T, nrows = 2, margin = 0.1, shareX = TRUE) %>%
-             plotly::layout(title = "Distance Histograms", showlegend = F, height = 600, margin = list(t = 50)))
+    return(fig)
   }
 }
 
@@ -284,8 +342,14 @@ fa_enrich_seqPersistence <- function(fastaInputs = NULL, minReads = 0){
     ggplot2::scale_x_continuous(breaks = unique(seqPersist$Freq)) +
     ggplot2::theme_classic()
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p, tooltip = "text")
+  
   # return interactive figure
-  return(plotly::ggplotly(p, tooltip = "text"))
+  return(fig)
 }
 
 #' This function creates a histogram of fold changes
@@ -305,8 +369,14 @@ fa_enrich_histogram <- function(df = NULL){
     ggplot2::theme_classic() +
     ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45))
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p)
+  
   # return interactive figure
-  return(plotly::ggplotly())
+  return(fig)
 }
 
 #' This function creates a scatter plot of RPMs in two populations
@@ -317,12 +387,22 @@ fa_enrich_scatter <- function(df = NULL){
   # rename RPM columns to appease plotly grammar
   colnames(df)[1:2] <- c("RPM1", "RPM2")
   
+  # add epsilon factor if RPM is equal to 0
+  df <- df %>%
+    dplyr::mutate(
+      RPM1 = ifelse(RPM1 == 0, RPM1 + 0.01, RPM1),
+      RPM2 = ifelse(RPM2 == 0, RPM2 + 0.01, RPM2)
+    )
+  
   # make plot
   p <- ggplot2::ggplot(df, ggplot2::aes(RPM1, RPM2, text = seqs)) +
     ggplot2::geom_point(colour = "skyblue", alpha = 0.5) +
     ggplot2::scale_x_log10() + ggplot2::scale_y_log10() +
     ggplot2::labs(x = rpmNames[1], y = rpmNames[2], title = paste0(rpmNames[1], " vs ", rpmNames[2])) +
     ggplot2::theme_classic()
+  
+  # make bold text
+  p <- boldPlots(p = p)
   
   # make interactive figure
   fig <- plotly::ggplotly(p)
@@ -342,8 +422,8 @@ fa_enrich_ra <- function(df = NULL){
   # add epsilon factor if RPM is equal to 0
   df <- df %>%
     dplyr::mutate(
-      RPM1 = ifelse(RPM1 == 0, RPM1 + 0.1, RPM1),
-      RPM2 = ifelse(RPM2 == 0, RPM2 + 0.1, RPM2)
+      RPM1 = ifelse(RPM1 == 0, RPM1 + 0.01, RPM1),
+      RPM2 = ifelse(RPM2 == 0, RPM2 + 0.01, RPM2)
     )
   
   # add fold change and average log RPM
@@ -354,10 +434,13 @@ fa_enrich_ra <- function(df = NULL){
     )
   
   # make plot
-  p <- ggplot(df, aes(x = A, y = R, text = seqs)) +
-    geom_point(colour = "skyblue", alpha = 0.5) +
-    labs(x = "Average log2(RPM)", y = "Fold Change", title = "Enrichment RA Plot") +
-    theme_classic()
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = A, y = R, text = seqs)) +
+    ggplot2::geom_point(colour = "skyblue", alpha = 0.5) +
+    ggplot2::labs(x = "Average log2(RPM)", y = "Fold Change", title = "Enrichment RA Plot") +
+    ggplot2::theme_classic()
+  
+  # make bold text
+  p <- boldPlots(p = p)
   
   # make interactive figure
   fig <- plotly::ggplotly(p)
@@ -407,6 +490,9 @@ fa_enrich_clusterBoxplots <- function(df = NULL){
     ggplot2::labs(x = "Cluster No.", y = "Enrichment",
                   title = paste0("Sequence Enrichment by Cluster - ", populations[1], ":", populations[2])) +
     ggplot2::theme_classic()
+  
+  # make bold text
+  p <- boldPlots(p = p)
   
   # make interactive figure
   fig <- plotly::ggplotly(p, tooltip = "text", dynamicTicks = TRUE)
@@ -535,7 +621,7 @@ fa_enrich_avgSequenceBar <- function(
   # get mean of AvEnrich between each pair of breakpoints
   bpMeans <- lapply(
     2:length(breakpoints_mod),
-    function(x) dta_average$AvEnrich[breakpoints_mod[x-1]:breakpoints_mod[x]] %>% mean()
+    function(x) dta_average$AvEnrich[breakpoints_mod[x-1]:(breakpoints_mod[x] - 1)] %>% mean()
   ) %>% unlist()
   
   # make bar plot of average enrichment per position
@@ -570,6 +656,9 @@ fa_enrich_avgSequenceBar <- function(
     )
   }
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
   # make interactive figure
   fig <- plotly::ggplotly(p, tooltip = "text")
   
@@ -578,8 +667,10 @@ fa_enrich_avgSequenceBar <- function(
 
 #' This function creates a heat map to show the average enrichment of non-reference residues at each position of a reference sequence,
 #' further resolved by all possible mutated residues
-fa_enrich_heatMap <- function(dataPath = NULL, refSeq = NULL, enrichRange = c(0,5), seqType = "Nucleotide", modList = "",
-                              lowCol = "red2", midCol = "gold", highCol = "yellow"){
+fa_enrich_heatMap <- function(
+  dataPath = NULL, refSeq = NULL, enrichRange = c(0,5), seqType = "Nucleotide", modList = "",
+  lowCol = "red2", midCol = "gold", highCol = "yellow"
+){
   # nucleotides or amino acids
   if(seqType == "Nucleotide"){
     charList <- c("A", "C", "G", "T", "U")
@@ -692,8 +783,14 @@ fa_enrich_heatMap <- function(dataPath = NULL, refSeq = NULL, enrichRange = c(0,
                   fill = "Average\nEnrichment") +
     ggplot2::theme_classic()
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p)
+  
   # return interactive figure
-  return(plotly::ggplotly(p))
+  return(fig)
 }
 
 #' This function creates a PCA scatter plot (first two components) of a kmer matrix
@@ -731,37 +828,43 @@ fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, topClu
     addEllipses = F, geom = c("point"),
     col.ind = as.factor(clusterDF$Cluster), legend.title = "Cluster"
   ) +
-    #ggplot2::labs(color="Cluster") +
-    #ggplot2::guides(colour = ggplot2::guide_legend(title = "Cluster")) +
     ggplot2::theme_classic()
   
+  # make bold text
+  kmerPCA_plot <- boldPlots(p = kmerPCA_plot)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(kmerPCA_plot)
+  
   # return interactive PCA plot
-  return(plotly::ggplotly(kmerPCA_plot))
+  return(fig)
 }
 
 #' This function creates line plots of metadata per cluster
 fa_clusterDiversity_metaplot <- function(diversityDF = NULL){
-  # convert "NC" to NA and make Cluster column from factors to numerics
-  diversityDF$Cluster <- as.character(diversityDF$Cluster)
-
+  # remove non-clustered sequences and convert cluster to character
+  diversityDF <- diversityDF %>%
+    dplyr::filter(Cluster != "NC") %>%
+    dplyr::mutate(Cluster = as.character(Cluster))
+  
   # line plot of unique sequences per cluster
   seqsPlot <- plotly::plot_ly(diversityDF, type = "scatter", mode = "lines", x = ~Cluster, y = ~TotalSequences) %>%
-    plotly::layout(xaxis = list(title = "Cluster Number", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
-                   yaxis = list(title = "Unique Sequences"))
+    plotly::layout(xaxis = list(title = "<b>Cluster Number</b>", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
+                   yaxis = list(title = "<b>Unique Sequences</b>"))
   
   # line plot of total sequences per cluster
   readsPlot <- plotly::plot_ly(diversityDF, type = "scatter", mode = "lines", x = ~Cluster, y = ~TotalReads) %>%
-    plotly::layout(xaxis = list(title = "Cluster Number", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
-                   yaxis = list(title = "Total Reads"))
+    plotly::layout(xaxis = list(title = "<b>Cluster Number</b>", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
+                   yaxis = list(title = "<b>Total Reads</b>"))
 
   # line plot of average LED to seed per cluster
   ledPlot <- plotly::plot_ly(diversityDF, type = "scatter", mode = "lines", x = ~Cluster, y = ~AverageLED) %>%
-    plotly::layout(xaxis = list(title = "Cluster Number", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
-                   yaxis = list(title = "Average LED to Cluster Seed"))
+    plotly::layout(xaxis = list(title = "<b>Cluster Number</b>", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
+                   yaxis = list(title = "<b>Average LED to Cluster Seed</b>"))
 
   # make interactive figure from subplots
-  fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3, height = 600) %>%
-    plotly::layout(title = "Cluster Metaplots", showlegend = FALSE)
+  fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3) %>%
+    plotly::layout(title = "<b>Cluster Metaplots</b>", showlegend = FALSE)
   
   # return interactive figure
   return(fig)
@@ -792,6 +895,12 @@ fa_clusterEnrichTracker <- function(clusterEnrichDF = NULL){
     ggplot2::labs(x = "Population", y = "Total RPM", title = "Seed Tracker") +
     ggplot2::theme_classic()
   
+  # make bold text
+  p <- boldPlots(p = p)
+  
+  # make interactive figure
+  fig <- plotly::ggplotly(p, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2))
+  
   # return interactive figure
-  return(plotly::ggplotly(p, height = 800, tooltip = "text") %>% plotly::layout(legend = list(orientation = 'h', y = -0.2)))
+  return(fig)
 }

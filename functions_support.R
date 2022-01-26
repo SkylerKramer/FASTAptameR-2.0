@@ -1,3 +1,8 @@
+#' This helper function helps rename files before downloading them
+rightSubstr <- function(x, n){
+  substr(x, nchar(x) - n + 1, nchar(x))
+}
+
 #' This function takes a FASTA file (WITH THE FA2 ID) and returns the same information as a dataframe
 fa_formatInput <- function(fastaInput = NULL, population = NULL){
   # read data, save IDs, convert sequences to data.frame
