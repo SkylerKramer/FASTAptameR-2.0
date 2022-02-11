@@ -358,7 +358,7 @@ fa_motif_trackerEnrichment <- function(trackerDF = NULL){
           Comparison = paste0(temp$FileName[i], " : ", temp$FileName[i-1]),
           Query = query,
           Alias = temp$Alias[i],
-          Enrichment = temp[i, ncol(temp)] / temp[i-1, ncol(temp)]
+          Enrichment = round(temp[i, ncol(temp)] / temp[i-1, ncol(temp)], 3)
         )
       )
     }
