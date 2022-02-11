@@ -33,13 +33,6 @@ options(shiny.maxRequestSize=2000*1024^2)
 ## sanitize error messages
 options(shiny.sanitize.errors = TRUE)
 
-# jscode_upload_msg <- "
-# Shiny.addCustomMessageHandler('upload_msg', function(msg) {
-#   var target = $('#uploaded_progress').children()[0];
-#   target.innerHTML = msg;
-# });
-# "
-
 ## define ui
 ui <- navbarPage(
   "FASTAptameR 2.0",
@@ -561,15 +554,17 @@ server <- function(input, output, session) {
     if(is.null(isolate(input$enrichInput))){
       showNotification("No files provided!", type = "error", duration = NULL)
       return(NULL)
-    } else if(nrow(isolate(input$enrichInput)) < 2){
-      showNotification("Supply at least 2 files!", type = "error", duration = NULL)
+    } else if(nrow(isolate(input$enrichInput)) != 2){
+      showNotification("Supply exactly 2 files!", type = "error", duration = NULL)
       return(NULL)
     } else if(length(isolate(input$enrich_selectInput)) < 2){
-      showNotification("Please order at least 2 files!", type = "error", duration = NULL)
+      showNotification("Please order your files!", type = "error", duration = NULL)
       return(NULL)
     } else{
-      fa_enrich(fastaInputs = isolate(input$enrichInput[match(input$enrich_selectInput, input$enrichInput$name),]$datapath),
-                keepNA = ifelse(isolate(input$enrichKeepNA) == "Yes", TRUE, FALSE))
+      fa_enrich(
+        fastaInputs = isolate(input$enrichInput[match(input$enrich_selectInput, input$enrichInput$name),]$datapath),
+        keepNA = ifelse(isolate(input$enrichKeepNA) == "Yes", TRUE, FALSE)
+      )
     }
   })
   
