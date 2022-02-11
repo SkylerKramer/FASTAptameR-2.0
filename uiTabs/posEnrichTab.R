@@ -49,7 +49,7 @@ posEnrichTab <- tabPanel(
       colourpicker::colourInput("highCol", "Select high colour", "yellow", returnName = TRUE),
       
       # text input for users to change breaks
-      textAreaInput("posEnrich_breakpoints", label = strong("Comma-separated breakpoints."), placeholder = "10,100,1000"),
+      textAreaInput("posEnrich_breakpoints", label = strong("Comma-separated breakpoints."), placeholder = "7,47"),
       shinyBS::bsTooltip("posEnrich_breakpoints", "For example: 7,47."),
       
       # plot start
