@@ -99,7 +99,7 @@ translateTab <- tabPanel(
       shinyBS::bsTooltip("translate_seqHistStart", "See a histogram of sequence lengths in the counted data"),
       shinyBS::bsModal("translate_seqHistWindow", "Sequence-Length Histogram", "translate_seqHistStart",
                        size = "large",
-                       shinycssloaders::withSpinner(plotly::plotlyOutput("translate_seqHistOutput")))
+                       shinycssloaders::withSpinner(plotly::plotlyOutput("translate_seqHistOutput", height = "650px")))
     ),
     
     # display translate output as datatable
