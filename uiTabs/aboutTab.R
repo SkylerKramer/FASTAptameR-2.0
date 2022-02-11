@@ -79,9 +79,9 @@ aboutTab <- tabPanel(
       a(href = "https://twitter.com/BurkeLabRNA", "@BurkeLabRNA", target = "_blank")
     ))),
     
-    tags$li("Email: burkelab@missouri.edu, stk7c9@umsystem.edu")
+    tags$li("Email: burkelab@missouri.edu")
   ),
   
   # update section
-  h3("The most recent version of FA2 is from Feb. 08, 2022.")
+  h3("The most recent version of FA2 is from Feb. 11, 2022.")
 )
