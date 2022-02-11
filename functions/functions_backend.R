@@ -104,15 +104,20 @@ fa_translate <- function(fastaInput = NULL, orf = 1, converge = T, inputChanges 
     unlist() %>%
     as.numeric()
   
+  # add sequence length
+  translateDF$Length <- nchar(translateDF$seqs)
+  
   # return translated sequences and corresponding data.frame
   # optionally return the number of unique nucleotide sequences for each amino acid sequence if convergence == T
   if(converge){
     translateDF <- merge(translateDF, as.data.frame(table(seqs)), by = "seqs")
     names(translateDF)[names(translateDF) == "Freq"] <- "Unique.Nt.Count"
-    translateDF <- translateDF[order(translateDF$Rank),c(2:6, 1)]
+    translateDF <- translateDF[order(translateDF$Rank),] %>% dplyr::select(id:Unique.Nt.Count, seqs)
   }else{
-    return(translateDF[,c(1,3:5,2)])
+    translateDF <- translateDF %>% dplyr::select(id, Rank:Length, seqs)
   }
+  
+  return(translateDF)
 }
 
 #' This function filters sequences for the presence of user-defined motif(s)
