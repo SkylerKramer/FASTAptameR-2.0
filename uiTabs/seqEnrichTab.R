@@ -52,20 +52,20 @@ seqEnrichTab <- tabPanel(
       actionButton("fcHistStart", label = h5("log2(Enrichment) Histogram"), style='padding:11px; font-size:80%'),
       shinyBS::bsTooltip("fcHistStart", "Histogram of fold-changes for every population comparison"),
       shinyBS::bsModal("fcHistWindow", "log2(Enrichment) Histogram", "fcHistStart", size = "large",
-                       shinycssloaders::withSpinner(uiOutput("fcHistOutput"))),
+                       shinycssloaders::withSpinner(plotlyOutput("fcHistOutput"))),
       
       # rpm scatter plot
       actionButton("rpmScatterStart", label = h5("RPM Scatter Plot"), style='padding:11px; font-size:80%'),
       shinyBS::bsTooltip("rpmScatterStart", "Scatter plot of RPMs from each supplied population"),
       shinyBS::bsModal("rpmScatterWindow", "RPM Scatter Plot", "rpmScatterStart", size = "large",
-                       shinycssloaders::withSpinner(uiOutput("rpmScatterOutput"))),
+                       shinycssloaders::withSpinner(plotlyOutput("rpmScatterOutput"))),
       
       # RA plot
       actionButton("raStart", label = h5("RA Plot"), style='padding:11px; font-size:80%'),
       shinyBS::bsTooltip("raStart",
                          "RA plot to compare across input files."),
       shinyBS::bsModal("raWindow", "RA Plot", "raStart", size = "large",
-                       shinycssloaders::withSpinner(uiOutput("raOutput"))),
+                       shinycssloaders::withSpinner(plotlyOutput("raOutput"))),
       
       # horizontal line
       tags$hr(style="border-color: black;"),
