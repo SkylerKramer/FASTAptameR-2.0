@@ -557,7 +557,7 @@ server <- function(input, output, session) {
     } else if(nrow(isolate(input$enrichInput)) != 2){
       showNotification("Supply exactly 2 files!", type = "error", duration = NULL)
       return(NULL)
-    } else if(length(isolate(input$enrich_selectInput)) < 2){
+    } else if(length(isolate(input$enrich_selectInput)) != 2){
       showNotification("Please order your files!", type = "error", duration = NULL)
       return(NULL)
     } else{
@@ -588,20 +588,20 @@ server <- function(input, output, session) {
     }
   )
   
-  ## SEQUENCE ENRICHMENT - GATHER SEQUENCE PERSISTENCE DATA
+  ## SEQUENCE ENRICHMENT - GENERATE SEQUENCE PERSISTENCE PLOT
   enrich_seqPers <- eventReactive(input$seqPersStart, {
     if(is.null(isolate(input$enrichInput))){
       showNotification("No files provided!", type = "error", duration = NULL)
       return(NULL)
-    } else if(nrow(isolate(input$enrichInput)) < 2 | nrow(isolate(input$enrichInput)) > 3){
-      showNotification("Supply 2-3 files!", type = "error", duration = NULL)
+    } else if(nrow(isolate(input$enrichInput)) != 2){
+      showNotification("Supply exactly 2 files!", type = "error", duration = NULL)
       return(NULL)
     } else{
       fa_enrich_seqPersistence(fastaInputs = isolate(input$enrichInput$datapath), minReads = isolate(input$enrich_minReads))
     }
   })
   
-  ## SEQUENCE ENRICHMENT - RENDER SEQUENCE PERSISENCE ANALYSIS
+  ## SEQUENCE ENRICHMENT - RENDER SEQUENCE PERSISENCE PLOT
   output$seqPersOutput <- plotly::renderPlotly({
     if(is.null(enrich_seqPers())){
       return(NULL)
@@ -610,117 +610,61 @@ server <- function(input, output, session) {
     }
   })
   
-  ## SEQUENCE ENRICHMENT - PREP DATA FOR LOG2(ENRICHMENT) HISTOGRAMS
-  enrich_histDataPrep <- eventReactive(input$fcHistStart, {
+  ## SEQUENCE ENRICHMENT - GENERATE LOG2(ENRICHMENT) HISTOGRAM
+  enrich_histogram <- eventReactive(input$fcHistStart, {
     if(is.null(enrichDF())){
+      showNotification("Generate an enrichment table!", type = "error", duration = NULL)
       return(NULL)
     } else{
-      # select columns with log2E in their names
-      log2E <- enrichDF() %>% dplyr::select(., dplyr::starts_with("log2E"))
-      
-      # make list of selected columns
-      dataList <- list()
-      for(i in 1:ncol(log2E)){
-        dataList[[i]] <- log2E %>% dplyr::select(., i)
-        
-        # add sequence column
-        dataList[[i]]$seqs <- enrichDF()$seqs
-      }
-      
-      # name the list according to the column names
-      names(dataList) <- colnames(log2E)
-      
-      # return dataList
-      dataList
+      fa_enrich_histogram(df = enrichDF())
     }
   })
   
-  ## SEQUENCE ENRICHMENT - DISPLAY DATA FOR LOG2(ENRICHMENT) HISTOGRAMS
-  observeEvent(input$fcHistStart, {
-    output$fcHistOutput <- renderUI({
-      # plot requires prepped data
-      pd <- req(enrich_histDataPrep())
-      
-      # create taglist
-      tagList(map(
-        pd,
-        ~ plotly::renderPlotly(fa_enrich_histogram(.))
-      ))
-    })
-  })
-  
-  ## SEQUENCE ENRICHMENT - PREP DATA FOR RPM SCATTER PLOTS
-  enrich_scatterDataPrep <- eventReactive(input$rpmScatterStart, {
-    if(is.null(enrichDF())){
+  ## SEQUENCE ENRICHMENT - RENDER LOG2(ENRICHMENT) HISTOGRAM
+  output$fcHistOutput <- plotly::renderPlotly({
+    if(is.null(enrich_histogram())){
       return(NULL)
     } else{
-      # select columns with RPM in their names
-      rpm <- enrichDF() %>% dplyr::select(., dplyr::starts_with("RPM"))
-      
-      # make list of consecutive column pairs; rename the list elements with the appended letters
-      dataList <- list()
-      for(i in 1:(ncol(rpm) - 1)){
-        dataList[[i]] <- rpm[,c(i,i+1)]
-        names(dataList)[i] <- paste0(letters[i], letters[i+1])
-        
-        # add sequence column
-        dataList[[i]]$seqs <- enrichDF()$seqs
-      }
-      
-      # return dataList
-      dataList
+      enrich_histogram()
     }
   })
   
-  ## SEQUENCE ENRICHMENT - DISPLAY DATA FOR RPM SCATTER PLOTS
-  observeEvent(input$rpmScatterStart, {
-    output$rpmScatterOutput <- renderUI({
-      # plot requires prepped data
-      pd <- req(enrich_scatterDataPrep())
-      
-      # create taglist
-      tagList(map(
-        pd,
-        ~ plotly::renderPlotly(fa_enrich_scatter(.))
-      ))
-    })
-  })
-  
-  ## SEQUENCE ENRICHMENT - PREP DATA FOR RA PLOTS
-  enrich_raDataPrep <- eventReactive(input$raStart, {
+  ## SEQUENCE ENRICHMENT - GENERATE RPM SCATTER PLOT
+  enrich_rpmScatterPlot <- eventReactive(input$rpmScatterStart, {
     if(is.null(enrichDF())){
+      showNotification("Generate an enrichment table!", type = "error", duration = NULL)
       return(NULL)
     } else{
-      # select columns with RPM in their names
-      rpm <- enrichDF() %>% dplyr::select(., dplyr::starts_with("RPM"))
-      
-      # make list of consecutive column pairs; rename the list elements with the appended letters
-      dataList <- list()
-      for(i in 1:(ncol(rpm) - 1)){
-        dataList[[i]] <- rpm[,c(i,i+1)]
-        names(dataList)[i] <- paste0(letters[i], letters[i+1])
-        
-        # add sequence column
-        dataList[[i]]$seqs <- enrichDF()$seqs
-      }
-      
-      # return dataList
-      dataList
+      fa_enrich_scatter(df = enrichDF())
     }
   })
   
-  ## SEQUENCE ENRICHMENT - DISPLAY DATA FOR RA PLOTS
-  observeEvent(input$raStart, {
-    output$raOutput <- renderUI({
-      # plot requires prepped data
-      pd <- req(enrich_raDataPrep())
-      
-      # create taglist
-      tagList(map(
-        pd,
-        ~ plotly::renderPlotly(fa_enrich_ra(.))
-      ))
-    })
+  ## SEQUENCE ENRICHMENT - RENDER RPM SCATTER PLOT
+  output$rpmScatterOutput <- plotly::renderPlotly({
+    if(is.null(enrich_rpmScatterPlot())){
+      return(NULL)
+    } else{
+      enrich_rpmScatterPlot()
+    }
+  })
+  
+  ## SEQUENCE ENRICHMENT - GENERATE RA PLOT
+  enrich_raPlot <- eventReactive(input$raStart, {
+    if(is.null(enrichDF())){
+      showNotification("Generate an enrichment table!", type = "error", duration = NULL)
+      return(NULL)
+    } else{
+      fa_enrich_ra(df = enrichDF())
+    }
+  })
+  
+  ## SEQUENCE ENRICHMENT - RENDER RA PLOT
+  output$raOutput <- plotly::renderPlotly({
+    if(is.null(enrich_raPlot())){
+      return(NULL)
+    } else{
+      enrich_raPlot()
+    }
   })
   
   ## SEQUENCE ENRICHMENT - PREP DATA FOR CLUSTER BOX PLOTS
@@ -733,10 +677,10 @@ server <- function(input, output, session) {
     } else{
       # get number of populations
       numPops <- enrichDF() %>% dplyr::select(dplyr::contains("Cluster.")) %>% ncol()
-      
+
       # initialize empty list to hold data.frames
       dataList <- list()
-      
+
       # iterate through all populations, starting with the 2nd one
       for(i in 2:numPops){
         # select columns with sequence, cluster, distance to seed, and sequence enrichment
@@ -748,18 +692,18 @@ server <- function(input, output, session) {
             paste0("enrichment_", letters[i], letters[i-1])
           )
       }
-      
+
       # return dataList
       dataList
     }
   })
-  
+
   ## SEQUENCE ENRICHMENT - DISPLAY DATA FOR CLUSTER BOX PLOTS
   observeEvent(input$boxplotStart, {
     output$boxplotOutput <- renderUI({
       # plot requires prepped data
       pd <- req(enrich_clusterBoxDataPrep())
-      
+
       # create taglist
       tagList(map(
         pd,
@@ -767,6 +711,28 @@ server <- function(input, output, session) {
       ))
     })
   })
+  
+  # ## SEQUENCE ENRICHMENT - GENERATE CLUSTER BOX PLOT
+  # enrich_clusterBoxPlot <- eventReactive(input$boxplotStart, {
+  #   if(is.null(enrichDF())){
+  #     showNotification("Generate an enrichment table!", type = "error", duration = NULL)
+  #     return(NULL)
+  #   } else if(enrichDF() %>% dplyr::select(dplyr::contains("Cluster")) %>% ncol() == 0){
+  #     showNotification("No cluster information!", type = "error")
+  #     return(NULL)
+  #   } else{
+  #     fa_enrich_clusterBoxplots(df = enrichDF())
+  #   }
+  # })
+  # 
+  # ## SEQUENCE ENRICHMENT - RENDER CLUSTER BOX PLOT
+  # output$boxplotOutput <- plotly::renderPlotly({
+  #   if(is.null(enrich_clusterBoxPlot())){
+  #     return(NULL)
+  #   } else{
+  #     enrich_clusterBoxPlot()
+  #   }
+  # })
   
   ## POSITIONAL ENRICHMENT - AVERAGE ENRICHMENT BARPLOT
   posEnrich_avPlot <- eventReactive(input$posEnrich_start, {
