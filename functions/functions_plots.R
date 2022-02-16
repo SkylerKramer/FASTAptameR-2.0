@@ -357,18 +357,10 @@ fa_enrich_seqPersistence <- function(fastaInputs = NULL, minReads = 0){
 
 #' This function creates a histogram of fold changes
 fa_enrich_histogram <- function(df = NULL){
-  # get population information from log2E column
-  popInfo <- substr(colnames(df)[1], 7, 8)
-  
-  # rename column to appease ggplot2 grammar
-  colnames(df) <- "log2E"
-  
   # make plot
-  p <- ggplot2::ggplot(df, ggplot2::aes(log2E)) +
+  p <- ggplot2::ggplot(df, ggplot2::aes(log2E_ba)) +
     ggplot2::geom_histogram(color = "black", fill = "skyblue", bins = 30) +
-    ggplot2::labs(x = "log2(Enrichment)", 
-                  y = "Number of Unique Sequences",
-                  title = paste0("log2E Histogram - ", substr(popInfo, 1, 1), ":", substr(popInfo, 2, 2))) +
+    ggplot2::labs(x = "log2(Enrichment)", y = "Number of Unique Sequences", title = "log2E Histogram - b:a") +
     ggplot2::theme_classic() +
     ggplot2::theme(axis.text.y = ggplot2::element_text(angle = 45))
   
@@ -384,24 +376,18 @@ fa_enrich_histogram <- function(df = NULL){
 
 #' This function creates a scatter plot of RPMs in two populations
 fa_enrich_scatter <- function(df = NULL){
-  # save RPM names
-  rpmNames <- colnames(df)[1:2]
-  
-  # rename RPM columns to appease plotly grammar
-  colnames(df)[1:2] <- c("RPM1", "RPM2")
-  
-  # add epsilon factor if RPM is equal to 0
+  # add epsilon factor if RPM is equal to 0; respectively changed RPM1 and RPM2 to RPM.a and RPM.b
   df <- df %>%
     dplyr::mutate(
-      RPM1 = ifelse(RPM1 == 0, RPM1 + 0.01, RPM1),
-      RPM2 = ifelse(RPM2 == 0, RPM2 + 0.01, RPM2)
+      RPM.a = ifelse(RPM.a == 0, RPM.a + 0.01, RPM.a),
+      RPM.b = ifelse(RPM.b == 0, RPM.b + 0.01, RPM.b)
     )
   
   # make plot
-  p <- ggplot2::ggplot(df, ggplot2::aes(RPM1, RPM2, text = seqs)) +
+  p <- ggplot2::ggplot(df, ggplot2::aes(RPM.a, RPM.b, text = seqs)) +
     ggplot2::geom_point(colour = "skyblue", alpha = 0.5) +
     ggplot2::scale_x_log10() + ggplot2::scale_y_log10() +
-    ggplot2::labs(x = rpmNames[1], y = rpmNames[2], title = paste0(rpmNames[1], " vs ", rpmNames[2])) +
+    ggplot2::labs(x = "RPM.a", y = "RPM.b", title = "RPM.a vs RPM.b") +
     ggplot2::theme_classic()
   
   # make bold text
@@ -416,24 +402,18 @@ fa_enrich_scatter <- function(df = NULL){
 
 #' This function creates an RA plot from RPMs in two populations; epsilon = 0.1
 fa_enrich_ra <- function(df = NULL){
-  # save RPM names
-  rpmNames <- colnames(df)[1:2]
-  
-  # rename RPM columns to appease plotly grammar
-  colnames(df)[1:2] <- c("RPM1", "RPM2")
-  
   # add epsilon factor if RPM is equal to 0
   df <- df %>%
     dplyr::mutate(
-      RPM1 = ifelse(RPM1 == 0, RPM1 + 0.01, RPM1),
-      RPM2 = ifelse(RPM2 == 0, RPM2 + 0.01, RPM2)
+      RPM.a = ifelse(RPM.a == 0, RPM.a + 0.01, RPM.a),
+      RPM.b = ifelse(RPM.b == 0, RPM.b + 0.01, RPM.b)
     )
   
   # add fold change and average log RPM
   df <- df %>%
     dplyr::mutate(
-      R = log2(RPM2 / RPM1),
-      A = 0.5 * log2(RPM2 * RPM1)
+      R = log2(RPM.b / RPM.a),
+      A = 0.5 * log2(RPM.b * RPM.a)
     )
   
   # make plot
