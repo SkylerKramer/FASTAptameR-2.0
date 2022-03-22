@@ -44,7 +44,8 @@ clusterDiversityTab <- tabPanel(
       # slider for top number of clusters to plot
       # sliderInput("kmerPCASlider_topClusters", label = strong("Number of top clusters to plot:"), min = 1, max = 20, value = 10, step = 1),
       # shinyBS::bsTooltip("kmerPCASlider_topClusters", "How many of the top clusters do you want to plot?"),
-      selectizeInput("kmerPCASlider_topClusters", label = strong("Plot which clusters?"), choices = "*", multiple = TRUE), 
+      selectizeInput("kmerPCA_clusters", label = strong("Plot which clusters?"), choices = "*", multiple = TRUE), 
+      shinyBS::bsTooltip("kmerPCA_clusters", "Which clusters should be included in the plot?"),
       
       # start button
       actionButton("kmerPCAStart", label = h5("k-mer PCA"), style='padding:11px; font-size:80%'),
