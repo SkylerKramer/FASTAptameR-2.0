@@ -36,7 +36,7 @@ fa_count_rpr <- function(countData = NULL, minReads = NULL, maxRanks = NULL){
   # make plot
   p <- ggplot2::ggplot(seqCounts, ggplot2::aes(x = SequenceRank, y = Reads, group = 1)) +
     ggplot2::geom_line(colour = "skyblue", size = 2) +
-    ggplot2::labs(x = "Ranks of unique sequences", y = "Total reads per unique sequence") +
+    ggplot2::labs(x = "Ranks of unique sequences", y = "Total reads per unique sequence", title = "Read count for each rank") +
     ggplot2::theme_classic()
   
   # make bold text
@@ -55,7 +55,7 @@ fa_count_histogram <- function(countData = NULL){
   p1 <- ggplot2::ggplot(countData, ggplot2::aes(Length)) +
     ggplot2::geom_bar(fill = "skyblue", colour = "black") +
     ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1) +
-    ggplot2::xlab("Sequence length") + ggplot2::ylab("Number of unique sequences") +
+    ggplot2::labs(x = "Sequence length", y = "Number of unique sequences") +
     ggplot2::theme_classic()
   
   p2 <- countData %>%
@@ -65,7 +65,7 @@ fa_count_histogram <- function(countData = NULL){
     ggplot2::ggplot(ggplot2::aes(x = Length, y = TotalReads)) +
     ggplot2::geom_bar(stat = "identity", fill = "skyblue", colour = "black") +
     ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1) +
-    ggplot2::xlab("Sequence length") + ggplot2::ylab("Total number of reads") +
+    ggplot2::labs(x = "Sequence length", y = "Total number of reads") +
     ggplot2::theme_classic()
   
   # make bold plots
@@ -777,7 +777,7 @@ fa_enrich_heatMap <- function(
 }
 
 #' This function creates a PCA scatter plot (first two components) of a kmer matrix
-fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, topClusters = 10, keepNC = T){
+fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, clustersToPlot = NULL){
   # format clustered file
   clusterDF <- fa_formatInput(fastaInput = clusterFile, population = NULL)
   
@@ -788,12 +788,8 @@ fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, topClu
   clusterDF[clusterDF == "NC"] <- NA
   clusterDF$Cluster <- as.numeric(as.character(clusterDF$Cluster))
   
-  # only keep the top clusters
-  if(keepNC){
-    clusterDF <- clusterDF[which(clusterDF$Cluster <= topClusters | is.na(clusterDF$Cluster)),]
-  } else{
-    clusterDF <- clusterDF[which(clusterDF$Cluster <= topClusters),]
-  }
+  # only keep the specified clusters
+  clusterDF <- clusterDF[which(clusterDF$Cluster %in% clustersToPlot),]
   
   # compute kmer matrix
   kmerMatrix <- clusterDF$seqs %>%
@@ -811,6 +807,7 @@ fa_clusterDiversity_kmerPCA <- function(clusterFile = NULL, kmerSize = 3, topClu
     addEllipses = F, geom = c("point"),
     col.ind = as.factor(clusterDF$Cluster), legend.title = "Cluster"
   ) +
+    ggplot2::labs(title = "k-mer PCA") +
     ggplot2::theme_classic()
   
   # make bold text
