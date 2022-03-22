@@ -31,14 +31,14 @@ source("./uiTabs/aboutTab.R")
 options(shiny.maxRequestSize=2000*1024^2)
 
 ## sanitize error messages
-options(shiny.sanitize.errors = TRUE)
+# options(shiny.sanitize.errors = TRUE)
 
 ## define ui
 ui <- navbarPage(
   "FASTAptameR 2.0",
   
   ## application theme
-  theme = shinythemes::shinytheme("cosmo"),
+  # theme = shinythemes::shinytheme("cosmo"),
   
   countTab,
   translateTab,
@@ -354,6 +354,9 @@ server <- function(input, output, session) {
     } else if(length(isolate(input$motifTracker_selectInput)) < 2){
       showNotification("Please order at least 2 files!", type = "error", duration = NULL)
       return(NULL)
+    } else if(isolate(input$motifTracker_selectInput) == "*"){
+      showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
+      return(NULL)
     } else if(isolate(input$motifInput_query) == ""){
       showNotification("Must supply valid motif(s)!", type = "error", duration = NULL)
       return(NULL)
@@ -560,6 +563,9 @@ server <- function(input, output, session) {
     } else if(length(isolate(input$enrich_selectInput)) != 2){
       showNotification("Please order your files!", type = "error", duration = NULL)
       return(NULL)
+    } else if(isolate(input$enrich_selectInput) == "*"){
+      showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
+      return(NULL)
     } else{
       fa_enrich(
         fastaInputs = isolate(input$enrichInput[match(input$enrich_selectInput, input$enrichInput$name),]$datapath),
@@ -711,28 +717,6 @@ server <- function(input, output, session) {
       ))
     })
   })
-  
-  # ## SEQUENCE ENRICHMENT - GENERATE CLUSTER BOX PLOT
-  # enrich_clusterBoxPlot <- eventReactive(input$boxplotStart, {
-  #   if(is.null(enrichDF())){
-  #     showNotification("Generate an enrichment table!", type = "error", duration = NULL)
-  #     return(NULL)
-  #   } else if(enrichDF() %>% dplyr::select(dplyr::contains("Cluster")) %>% ncol() == 0){
-  #     showNotification("No cluster information!", type = "error")
-  #     return(NULL)
-  #   } else{
-  #     fa_enrich_clusterBoxplots(df = enrichDF())
-  #   }
-  # })
-  # 
-  # ## SEQUENCE ENRICHMENT - RENDER CLUSTER BOX PLOT
-  # output$boxplotOutput <- plotly::renderPlotly({
-  #   if(is.null(enrich_clusterBoxPlot())){
-  #     return(NULL)
-  #   } else{
-  #     enrich_clusterBoxPlot()
-  #   }
-  # })
   
   ## POSITIONAL ENRICHMENT - AVERAGE ENRICHMENT BARPLOT
   posEnrich_avPlot <- eventReactive(input$posEnrich_start, {
@@ -933,6 +917,11 @@ server <- function(input, output, session) {
     }
   })
   
+  ## CLUSTER DIVERSITY - UPDATE CLUSTER SELECTIONS
+  observe({
+    updateSelectizeInput(session = session, inputId = "kmerPCA_clusters", choices = clusterDiversityDF()$Cluster)
+  })
+  
   ## CLUSTER DIVERSITY - K-MER PCA - RENDER
   kmerPCA <- eventReactive(input$kmerPCAStart, {
     if(is.null(isolate(input$clusterDiversityInput))){
@@ -940,11 +929,16 @@ server <- function(input, output, session) {
     } else if(lengths(strsplit(readLines(isolate(input$clusterDiversityInput$datapath), n = 1), split = "-")) != 6){
       showNotification("Please provide a file from FASTAptameR-Cluster!", type = "error", duration = NULL)
       return(NULL)
+    } else if(isolate(input$kmerPCA_clusters[1]) == "*" | length(isolate(input$kmerPCA_clusters)) < 1 | length(isolate(input$kmerPCA_clusters)) > 15){
+      showNotification("Please select 1-15 clusters to visualize!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(is.null(clusterDiversityDF())){
+      showNotification("Please generate a table before generating this plot!", type = "error", duration = NULL)
+      return(NULL)
     } else{
       fa_clusterDiversity_kmerPCA(clusterFile = isolate(input$clusterDiversityInput$datapath),
                                   kmerSize = as.numeric(isolate(input$kmerPCAButton_k)),
-                                  topClusters = as.numeric(isolate(input$kmerPCASlider_topClusters)),
-                                  keepNC = ifelse(isolate(input$kmerPCAButton_keepNC) == "Yes", TRUE, FALSE))
+                                  clustersToPlot = isolate(input$kmerPCA_clusters))
     }
   })
   
@@ -967,7 +961,10 @@ server <- function(input, output, session) {
       showNotification("Supply at least 2 files!", type = "error", duration = NULL)
       return(NULL)
     } else if(length(isolate(input$clusterEnrich_selectInput)) < 2){
-      showNotification("Please order at least 2 files!", type = "error", duration = NULL)
+      showNotification("Please order your files!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(length(isolate(input$clusterEnrich_selectInput)) == 1 & isolate(input$clusterEnrich_selectInput[1]) == "*"){
+      showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
       return(NULL)
     } else{
       fa_clusterEnrich(
