@@ -42,16 +42,9 @@ clusterDiversityTab <- tabPanel(
                          "Should the PCA be based on 3-, 4-, or 5-mers?"), 
       
       # slider for top number of clusters to plot
-      sliderInput("kmerPCASlider_topClusters", label = strong("Number of top clusters to plot:"),
-                  min = 1, max = 20, value = 10, step = 1),
-      shinyBS::bsTooltip("kmerPCASlider_topClusters",
-                         "How many of the top clusters do you want to plot?"),
-      
-      # select value of k for kmer PCA
-      radioButtons("kmerPCAButton_keepNC", label = strong("Keep non-clustered sequences?"),
-                   choices = c("Yes", "No"), selected = "No", inline = TRUE),
-      shinyBS::bsTooltip("kmerPCAButton_keepNC",
-                         "If Yes, keep top N clusters AND the non-clustered sequences."), 
+      # sliderInput("kmerPCASlider_topClusters", label = strong("Number of top clusters to plot:"), min = 1, max = 20, value = 10, step = 1),
+      # shinyBS::bsTooltip("kmerPCASlider_topClusters", "How many of the top clusters do you want to plot?"),
+      selectizeInput("kmerPCASlider_topClusters", label = strong("Plot which clusters?"), choices = "*", multiple = TRUE), 
       
       # start button
       actionButton("kmerPCAStart", label = h5("k-mer PCA"), style='padding:11px; font-size:80%'),
