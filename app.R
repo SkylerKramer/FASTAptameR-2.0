@@ -354,7 +354,7 @@ server <- function(input, output, session) {
     } else if(length(isolate(input$motifTracker_selectInput)) < 2){
       showNotification("Please order at least 2 files!", type = "error", duration = NULL)
       return(NULL)
-    } else if(isolate(input$motifTracker_selectInput) == "*"){
+    } else if(isolate(input$motifTracker_selectInput)[1] == "*"){
       showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
       return(NULL)
     } else if(isolate(input$motifInput_query) == ""){
@@ -563,7 +563,7 @@ server <- function(input, output, session) {
     } else if(length(isolate(input$enrich_selectInput)) != 2){
       showNotification("Please order your files!", type = "error", duration = NULL)
       return(NULL)
-    } else if(isolate(input$enrich_selectInput) == "*"){
+    } else if(isolate(input$enrich_selectInput)[1] == "*"){
       showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
       return(NULL)
     } else{
