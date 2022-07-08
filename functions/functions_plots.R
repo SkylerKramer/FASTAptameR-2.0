@@ -828,23 +828,38 @@ fa_clusterDiversity_metaplot <- function(diversityDF = NULL){
     dplyr::mutate(Cluster = as.character(Cluster))
   
   # line plot of unique sequences per cluster
-  seqsPlot <- plotly::plot_ly(diversityDF, type = "scatter", mode = "lines", x = ~Cluster, y = ~TotalSequences) %>%
-    plotly::layout(xaxis = list(title = "<b>Cluster Number</b>", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
-                   yaxis = list(title = "<b>Unique Sequences</b>"))
+  seqsPlot <- plotly::ggplotly(
+    boldPlots(
+      ggplot2::ggplot(diversityDF, ggplot2::aes(x = as.numeric(Cluster), y = TotalSequences)) +
+        ggplot2::geom_line(colour = "blue", size = 2) +
+        ggplot2::labs(x = "Cluster", y = "Seq. Count") +
+        ggplot2::theme_bw()
+    )
+  )
   
   # line plot of total sequences per cluster
-  readsPlot <- plotly::plot_ly(diversityDF, type = "scatter", mode = "lines", x = ~Cluster, y = ~TotalReads) %>%
-    plotly::layout(xaxis = list(title = "<b>Cluster Number</b>", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
-                   yaxis = list(title = "<b>Total Reads</b>"))
-
+  readsPlot <- plotly::ggplotly(
+    boldPlots(
+      ggplot2::ggplot(diversityDF, ggplot2::aes(x = as.numeric(Cluster), y = TotalReads)) +
+        ggplot2::geom_line(colour = "orange", size = 2) +
+        ggplot2::labs(x = "Cluster", y = "Read Count") +
+        ggplot2::theme_bw()
+    )
+  )
+  
   # line plot of average LED to seed per cluster
-  ledPlot <- plotly::plot_ly(diversityDF, type = "scatter", mode = "lines", x = ~Cluster, y = ~AverageLED) %>%
-    plotly::layout(xaxis = list(title = "<b>Cluster Number</b>", categoryorder = "array", categoryarray = ~Cluster, zeroline = T),
-                   yaxis = list(title = "<b>Average LED to Cluster Seed</b>"))
-
+  ledPlot <- plotly::ggplotly(
+    boldPlots(
+      ggplot2::ggplot(diversityDF, ggplot2::aes(x = as.numeric(Cluster), y = AverageLED)) +
+        ggplot2::geom_line(colour = "forestgreen", size = 2) +
+        ggplot2::labs(x = "Cluster", y = "Avg. LED") +
+        ggplot2::theme_bw()
+    )
+  )
+  
   # make interactive figure from subplots
   fig <- plotly::subplot(seqsPlot, readsPlot, ledPlot, titleY = TRUE, shareX = TRUE, nrows = 3) %>%
-    plotly::layout(title = "<b>Cluster Metaplots</b>", showlegend = FALSE)
+    plotly::layout(title = "<b>Cluster Metaplots</b>", margin = list(b = 50, l = 50, r = 50, t = 50))
   
   # return interactive figure
   return(fig)
