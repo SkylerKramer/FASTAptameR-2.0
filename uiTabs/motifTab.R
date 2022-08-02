@@ -4,12 +4,14 @@
 # source the sub-tabs
 source("./uiTabs/motifSearchTab.R")
 source("./uiTabs/motifTrackerTab.R")
+source("./uiTabs/motifDiscoveryTab.R")
 
 # merge the sub-tabs
 motifTab <- tabPanel(
   "Motif",
   tabsetPanel(
     motifSearchTab,
-    motifTrackerTab
+    motifTrackerTab,
+    motifDiscoveryTab
   )
 )

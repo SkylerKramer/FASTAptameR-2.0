@@ -3,19 +3,24 @@
 
 motifTrackerTab <- tabPanel(
   "Tracker",
+  
   sidebarLayout(
     sidebarPanel(
+      
       # ask for input files
-      fileInput("motifTrackerInput", label = strong("Input data:"),
-                multiple = TRUE, placeholder = "FASTA files",
-                accept = c('.fasta')),
+      fileInput(
+        "motifTrackerInput",
+        label = strong("Input data:"),
+        multiple = TRUE,
+        placeholder = "FASTA files",
+        accept = c('.fasta')
+      ),
       
       # note on selecting multiple files
       em("Holding ctrl (Windows) or command (Mac) will allow you to click multiple files."),
       
       # reorder files because fileInput keeps them in alphabetical order
-      selectizeInput("motifTracker_selectInput", label = strong("Select file order."),
-                     choices = "*", multiple = TRUE),
+      selectizeInput("motifTracker_selectInput", label = strong("Select file order."), choices = "*", multiple = TRUE),
       
       # ask for motif
       textAreaInput("motifInput_query", label = strong("Motif or sequence list:"), height = '100px'),
@@ -26,20 +31,27 @@ motifTrackerTab <- tabPanel(
       shinyBS::bsTooltip("motifInput_alias", "User-defined IDs for queries."),
       
       # radio buttons for nt or aa searching
-      radioButtons("motifTrackerButton_queryType", label = strong("Search for motifs or whole sequences?"),
-                   choices = c("Motif", "Sequence"), selected = "Motif", inline = TRUE),
-      shinyBS::bsTooltip("motifTrackerButton_queryType",
-                         "Are you searching for motifs or sequences?"),
+      radioButtons(
+        "motifTrackerButton_queryType",
+        label = strong("Search for motifs or whole sequences?"),
+        choices = c("Motif", "Sequence"),
+        selected = "Motif",
+        inline = TRUE
+      ),
+      shinyBS::bsTooltip("motifTrackerButton_queryType", "Are you searching for motifs or sequences?"),
       
       conditionalPanel(
         condition = "input.motifTrackerButton_queryType == 'Motif'",
         
         # radio buttons for nt or aa searching
-        radioButtons("motifTrackerButton_motifType", label = strong("Type of pattern?"),
-                     choices = c("Nucleotide", "AminoAcid", "String"), selected = "Nucleotide",
-                     inline = TRUE),
-        shinyBS::bsTooltip("motifTrackerButton_motifType",
-                           "Nucleotide option considers degenerate codes; other options do not.")
+        radioButtons(
+          "motifTrackerButton_motifType",
+          label = strong("Type of pattern?"),
+          choices = c("Nucleotide", "AminoAcid", "String"),
+          selected = "Nucleotide",
+          inline = TRUE
+        ),
+        shinyBS::bsTooltip("motifTrackerButton_motifType", "Nucleotide option considers degenerate codes; other options do not.")
       ),
       
       # start button

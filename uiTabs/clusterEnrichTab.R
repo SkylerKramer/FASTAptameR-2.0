@@ -3,19 +3,24 @@
 
 clusterEnrichTab <- tabPanel(
   "Enrichment",
+  
   sidebarLayout(
     sidebarPanel(
+      
       # ask for input file
-      fileInput("clusterEnrichInput", label = strong("Input data:"),
-                multiple = TRUE, placeholder = "Cluster analysis files",
-                accept = c('.csv')),
+      fileInput(
+        "clusterEnrichInput",
+        label = strong("Input data:"),
+        multiple = TRUE,
+        placeholder = "Cluster analysis files",
+        accept = c('.csv')
+      ),
       
       # note on selecting multiple files
       em("Holding ctrl (Windows) or command (Mac) will allow you to click multiple files."),
       
       # reorder files because fileInput keeps them in alphabetical order
-      selectizeInput("clusterEnrich_selectInput", label = strong("Select file order."),
-                     choices = "*", multiple = TRUE),
+      selectizeInput("clusterEnrich_selectInput", label = strong("Select file order."), choices = "*", multiple = TRUE),
       
       # start button
       actionButton("clusterEnrichStart", label = h5("Start"), style='padding:11px; font-size:80%'),

@@ -3,6 +3,7 @@
 
 aboutTab <- tabPanel(
   "About",
+  
   # logo
   div(img(src = "FASTAptameR2-0_logo.png"), style = "text-align: center;"),
   
@@ -50,11 +51,6 @@ aboutTab <- tabPanel(
       "Github (code download): ",
       a(href = "https://github.com/SkylerKramer/FASTAptameR-2.0/", "SkylerKramer/FASTAptameR-2.0", target = "blank")
     )))
-    
-    # tags$li(HTML(paste0(
-    #   "User guide: ",
-    #   a(href = "https://github.com/SkylerKramer/FASTAptameR-2.0/blob/main/UserGuide.pdf", "UserGuide.pdf", target = "_blank")
-    # )))
   ),
   
   # citation
@@ -83,5 +79,5 @@ aboutTab <- tabPanel(
   ),
   
   # update section
-  h3("The most recent version of FA2 is from Feb. 11, 2022.")
+  h3("The most recent version of FA2 is from Aug. 02, 2022.")
 )
