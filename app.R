@@ -8,21 +8,48 @@ library(shinyFiles)
 library(colourpicker)
 
 library(dplyr)
+library(stringr)
 library(purrr)
 library(ggplot2)
 library(plotly)
+library(UpSetR)
 
-## source files for functions
+## source files for support functions
 source("./functions/functions_support.R")
-source("./functions/functions_plots.R")
-source("./functions/functions_backend.R")
 source("./functions/functions_ui.R")
+
+## source files for analytical functions
+source("./functions/count_analyses.R")
+source("./functions/translate_analyses.R")
+source("./functions/motifSearch_analyses.R")
+source("./functions/motifTracker_analyses.R")
+source("./functions/motifDiscovery_analyses.R")
+source("./functions/mutationNetwork_analyses.R")
+source("./functions/distance_analyses.R")
+source("./functions/dataMerge_analyses.R")
+source("./functions/seqEnrich_analyses.R")
+source("./functions/cluster_analyses.R")
+source("./functions/clusterDiversity_analyses.R")
+source("./functions/clusterEnrich_analyses.R")
+
+## source files for visualization functions
+source("./functions/count_plots.R")
+source("./functions/motifTracker_plots.R")
+source("./functions/motifDiscovery_plots.R")
+source("./functions/distance_plots.R")
+source("./functions/dataMerge_plots.R")
+source("./functions/seqEnrich_plots.R")
+source("./functions/posEnrich_plots.R")
+source("./functions/clusterDiversity_plots.R")
+source("./functions/clusterEnrich_plots.R")
 
 ## source files for tabs
 source("./uiTabs/countTab.R")
 source("./uiTabs/translateTab.R")
 source("./uiTabs/motifTab.R")
 source("./uiTabs/distanceTab.R")
+source("./uiTabs/mutationNetworkTab.R")
+source("./uiTabs/dataMergeTab.R")
 source("./uiTabs/enrichTab.R")
 source("./uiTabs/clusterTab.R")
 source("./uiTabs/aboutTab.R")
@@ -38,12 +65,14 @@ ui <- navbarPage(
   "FASTAptameR 2.0",
   
   ## application theme
-  # theme = shinythemes::shinytheme("cosmo"),
+  theme = shinythemes::shinytheme("cosmo"),
   
   countTab,
   translateTab,
   motifTab,
+  mutationNetworkTab,
   distanceTab,
+  dataMergeTab,
   enrichTab,
   clusterTab,
   aboutTab,
@@ -58,19 +87,22 @@ ui <- navbarPage(
 )
 
 server <- function(input, output, session) {
+  
   ## COUNT - DATA GENERATION
   countDF <- eventReactive(input$countStart, {
-    if(is.null(isolate(input$countInput)) & isolate(input$countInput_URL) == ""){
+    if(is.null(isolate(input$countInput))){
       showNotification("No file or link provided!", type = "error", duration = NULL)
       return(NULL)
     } else{
       # capture output
       withCallingHandlers({
         shinyjs::html("countTextOutput", "")
-        fa_count(dataInput = ifelse(!is.null(isolate(input$countInput$datapath)),
-                                    isolate(input$countInput$datapath),
-                                    isolate(input$countInput_URL)))
+        fa_count(
+          dataInput = isolate(input$countInput$datapath),
+          reverseComplement = ifelse(isolate(input$reverseComplement) == "Yes", TRUE, FALSE)
+        )
       },
+      
       # redirect output to text in UI
       message = function(m){
         shinyjs::html(id = "countTextOutput", html = m$message, add = FALSE)
@@ -101,8 +133,11 @@ server <- function(input, output, session) {
     
     content = function(file){
       if(isolate(input$countDownloadType) == "FASTA"){
-        write.table(fa_formatOutput(outputData = countDF()[input[["countOutput_rows_all"]],]), file,
-                    quote = FALSE, row.names = FALSE, col.names = FALSE)
+        write.table(
+          fa_formatOutput(outputData = countDF()[input[["countOutput_rows_all"]],]),
+          file,
+          quote = FALSE, row.names = FALSE, col.names = FALSE
+        )
       }else{
         write.csv(countDF()[input[["countOutput_rows_all"]],], file, quote = FALSE, row.names = FALSE)
       }
@@ -114,9 +149,11 @@ server <- function(input, output, session) {
     if(is.null(countDF())){
       return(NULL)
     } else{
-      fa_count_rpr(countData = countDF(),
-                   minReads = isolate(input$countSlider_minReads),
-                   maxRanks = isolate(input$countSlider_maxRanks))
+      fa_count_rpr(
+        countData = countDF(),
+        minReads = isolate(input$countSlider_minReads),
+        maxRanks = isolate(input$countSlider_maxRanks)
+      )
     }
   })
   
@@ -186,11 +223,13 @@ server <- function(input, output, session) {
       showNotification("Modifications must be alphanumeric!", type = "error", duration = NULL)
       return(NULL)
     } else{
-      fa_translate(fastaInput = isolate(input$translateInput$datapath),
-                   orf = isolate(input$orfButton),
-                   converge = ifelse(isolate(input$convergeButton) == "Yes", TRUE, FALSE),
-                   inputChanges = isolate(input$translateInput_changes),
-                   translateSelection = "Standard")
+      fa_translate(
+        fastaInput = isolate(input$translateInput$datapath),
+        orf = isolate(input$orfButton),
+        converge = ifelse(isolate(input$convergeButton) == "Yes", TRUE, FALSE),
+        inputChanges = isolate(input$translateInput_changes),
+        translateSelection = isolate(input$translateSelection)
+      )
     }
   })
   
@@ -226,8 +265,11 @@ server <- function(input, output, session) {
     # set file content
     content = function(file){
       if(isolate(input$translateDownloadType) == "FASTA"){
-        write.table(fa_formatOutput(outputData = translateDF()[input[["translateOutput_rows_all"]],]), file,
-                    quote = FALSE, row.names = FALSE, col.names = FALSE)
+        write.table(
+          fa_formatOutput(outputData = translateDF()[input[["translateOutput_rows_all"]],]),
+          file,
+          quote = FALSE, row.names = FALSE, col.names = FALSE
+        )
       }else{
         write.csv(translateDF()[input[["translateOutput_rows_all"]],], file, quote = FALSE, row.names = FALSE)
       }
@@ -239,9 +281,11 @@ server <- function(input, output, session) {
     if(is.null(translateDF())){
       return(NULL)
     } else{
-      fa_count_rpr(countData = translateDF(),
-                   minReads = isolate(input$translateSlider_minReads),
-                   maxRanks = isolate(input$translateSlider_maxRanks))
+      fa_count_rpr(
+        countData = translateDF(),
+        minReads = isolate(input$translateSlider_minReads),
+        maxRanks = isolate(input$translateSlider_maxRanks)
+      )
     }
   })
   
@@ -283,16 +327,17 @@ server <- function(input, output, session) {
       showNotification("Must supply valid pattern(s)!", type = "error", duration = NULL)
       return(NULL)
     } else if(grepl("[^a-zA-Z0-9]", gsub(",| ", "", isolate(input$motifInput_search)))){
-      showNotification("Pattern list must be alphanumeric!", type = "error",
-                       duration = NULL)
+      showNotification("Pattern list must be alphanumeric!", type = "error", duration = NULL)
       return(NULL)
     }else{
       ## function call
-      fa_motifSearch(fastaInput = isolate(input$motifSearchInput$datapath),
-                     motif = isolate(input$motifInput_search),
-                     highlight = ifelse(isolate(input$motifSearchButton_highlight) == "Yes", TRUE, FALSE),
-                     partial = ifelse(isolate(input$motifSearchButton_partial) == "Yes", TRUE, FALSE),
-                     motifType = isolate(input$motifSearchButton_motifType))
+      fa_motifSearch(
+        fastaInput = isolate(input$motifSearchInput$datapath),
+        motif = isolate(input$motifInput_search),
+        highlight = ifelse(isolate(input$motifSearchButton_highlight) == "Yes", TRUE, FALSE),
+        partial = ifelse(isolate(input$motifSearchButton_partial) == "Yes", TRUE, FALSE),
+        motifType = isolate(input$motifSearchButton_motifType)
+      )
     }
   })
   
@@ -329,11 +374,17 @@ server <- function(input, output, session) {
     content = function(file){
       # format data for output as FASTA file
       if(isolate(input$motifSearchDownloadType) == "FASTA"){
-        write.table(fa_formatOutput(outputData = motifSearchDF()[input[["motifSearchOutput_rows_all"]],]), file,
-                    quote = FALSE, row.names = FALSE, col.names = FALSE)
+        write.table(
+          fa_formatOutput(outputData = motifSearchDF()[input[["motifSearchOutput_rows_all"]],]),
+          file,
+          quote = FALSE, row.names = FALSE, col.names = FALSE
+        )
       }else{
-        write.csv(motifSearchDF()[input[["motifSearchOutput_rows_all"]],], file,
-                  quote = FALSE, row.names = FALSE)
+        write.csv(
+          motifSearchDF()[input[["motifSearchOutput_rows_all"]],],
+          file,
+          quote = FALSE, row.names = FALSE
+        )
       }
     }
   )
@@ -370,6 +421,8 @@ server <- function(input, output, session) {
       showNotification("When aliases are provided, there must be one for each query!", type = "error", duration = NULL)
       return(NULL)
     } else{
+      
+      # check if user is supplying motifs or sequences
       if(isolate(input$motifTrackerButton_queryType) == "Motif"){
         fa_motif_motifTracker(
           fastaInputs = isolate(input$motifTrackerInput[match(input$motifTracker_selectInput, input$motifTrackerInput$name),]$datapath),
@@ -460,6 +513,60 @@ server <- function(input, output, session) {
     }
   })
   
+  ## MOTIF DISCOVERY - DATA GENERATION
+  motifDiscoveryDF <- eventReactive(input$motifDiscovery_start, {
+    if(is.null(isolate(input$motifDiscovery_input))){
+      showNotification("No file provided!", type = "error", duration = NULL)
+      return(NULL)
+    } else{
+      fa_fsbc_motifDiscovery(
+        fastaInput = isolate(input$motifDiscovery_input$datapath),
+        minReads = isolate(input$motifDiscovery_minReads),
+        lengthRange = isolate(input$motifDiscovery_lengthRange)
+      )
+    }
+  })
+  
+  ## MOTIF DISCOVERY - BUBBLE PLOT - RENDER
+  motifDiscovery_plot <- eventReactive(input$motifDiscovery_start, {
+    if(is.null(motifDiscoveryDF())){
+      return(NULL)
+    } else{
+      fa_fsbc_motifDiscoveryPlot(motifDF = motifDiscoveryDF())
+    }
+  })
+  
+  ## MOTIF DISCOVERY - BUBBLE PLOT - PLOT
+  output$motifDiscovery_plot <- plotly::renderPlotly({
+    if(is.null(motifDiscovery_plot())){
+      return(NULL)
+    } else{
+      motifDiscovery_plot()
+    }
+  })
+  
+  ## MOTIF DISCOVERY - DATA OUTPUT
+  output$motifDiscovery_output <- DT::renderDataTable(DT::datatable({
+    motifDiscoveryDF()
+  },
+  filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
+  ))
+  
+  ## MOTIF DISCOVERY DOWNLOAD
+  output$motifDiscovery_download <- downloadHandler(
+    # set filename
+    filename = function(){
+      "motifDiscovery.csv"
+    },
+    
+    # set file content
+    content = function(file){
+      
+      # format data for output as CSV file
+      write.csv(motifDiscoveryDF(), file, row.names = FALSE, quote = TRUE)
+    }
+  )
+  
   ## DISTANCE - UPDATE SLIDER BAR
   observe({
     updateSliderInput(
@@ -483,9 +590,11 @@ server <- function(input, output, session) {
       showNotification("Query sequence must be alphanumeric!", type = "error", duration = NULL)
       return(NULL)
     } else{
-      fa_distance(dataInput = isolate(input$distanceInput$datapath),
-                  querySequence = isolate(input$querySequence),
-                  seqRange = isolate(input$distanceTruncRange))
+      fa_distance(
+        dataInput = isolate(input$distanceInput$datapath),
+        querySequence = isolate(input$querySequence),
+        seqRange = isolate(input$distanceTruncRange)
+      )
     }
   })
   
@@ -517,11 +626,17 @@ server <- function(input, output, session) {
     # set file content
     content = function(file){
       if(isolate(input$distanceDownloadType) == "FASTA"){
-        write.table(fa_formatOutput(outputData = distanceDF()[input[["distanceOutput_rows_all"]],]), file,
-                    quote = FALSE, row.names = FALSE, col.names = FALSE)
+        write.table(
+          fa_formatOutput(outputData = distanceDF()[input[["distanceOutput_rows_all"]],]),
+          file,
+          quote = FALSE, row.names = FALSE, col.names = FALSE
+        )
       }else{
-        write.csv(distanceDF()[input[["distanceOutput_rows_all"]],], file,
-                  quote = FALSE, row.names = FALSE)
+        write.csv(
+          distanceDF()[input[["distanceOutput_rows_all"]],],
+          file,
+          quote = FALSE, row.names = FALSE
+        )
       }
     }
   )
@@ -531,19 +646,170 @@ server <- function(input, output, session) {
     if(is.null(distanceDF())){
       return(NULL)
     } else{
-      fa_distance_histogram(distanceData = distanceDF(),
-                            querySequence = isolate(input$querySequence))
+      fa_distance_histogram(distanceData = distanceDF(), querySequence = isolate(input$querySequence))
     }
   })
   
   ## DISTANCE - DISTANCE HISTOGRAM - PLOT
   output$distance_histOutput <- plotly::renderPlotly({
     if(is.null(distance_histogram())){
-      showNotification("Please generate a data table from a single population before plotting!",
-                       type = "error", duration = NULL)
+      showNotification("Please generate a data table from a single population before plotting!", type = "error", duration = NULL)
       return(NULL)
     } else{
       distance_histogram()
+    }
+  })
+  
+  ## MUTATION NETWORK - DATA GENERATION
+  mutationNetworkDF <- eventReactive(input$mutationNetwork_start, {
+    if(is.null(isolate(input$mutationNetwork_input))){
+      showNotification("No file provided!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(isolate(input$mutationNetwork_startNode) == ""){
+      showNotification("Must supply valid start sequence!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$mutationNetwork_startNode)))){
+      showNotification("Start sequence must be alphanumeric!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(isolate(input$mutationNetwork_endNode) == ""){
+      showNotification("Must supply valid end sequence!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$mutationNetwork_endNode)))){
+      showNotification("End sequence must be alphanumeric!", type = "error", duration = NULL)
+      return(NULL)
+    } else{
+      fa_mutationalIntermediates(
+        fastaInput = isolate(input$mutationNetwork_input$datapath),
+        startNode = isolate(input$mutationNetwork_startNode),
+        endNode = isolate(input$mutationNetwork_endNode),
+        maxCost = isolate(input$mutationNetwork_maxCost)
+      )
+    }
+  })
+  
+  ## MUTATION NETWORK - DATA OUTPUT; this is a data.table if a path was found or a character string if not
+  output$mutationNetwork_DT_output <- DT::renderDataTable(DT::datatable({
+    if(is.data.frame(mutationNetworkDF())){
+      mutationNetworkDF()
+    }
+  },
+  filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
+  ))
+  
+  output$mutationNetwork_text_output <- renderUI(
+    if(!is.data.frame(mutationNetworkDF())){
+      mutationNetworkDF()
+    }
+  )
+  
+  ## MUTATION NETWORK DOWNLOAD
+  output$mutationNetwork_download <- downloadHandler(
+    # set filename
+    filename = function(){
+      "mutationNetwork.csv"
+    },
+    
+    # set file content
+    content = function(file){
+      
+      # format data for output as CSV file
+      write.csv(mutationNetworkDF(), file, row.names = FALSE, quote = TRUE)
+    }
+  )
+  
+  ## DATA MERGE - UPDATE FILE SELECTIONS
+  observe({
+    updateSelectizeInput(session = session, inputId = "dataMerge_selectInput", choices = input$dataMerge_input$name)
+  })
+  
+  ## DATA MERGE - DATA GENERATION
+  dataMergeDF <- eventReactive(input$dataMerge_start, {
+    if(is.null(isolate(input$dataMerge_input))){
+      showNotification("No files provided!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(nrow(isolate(input$dataMerge_input)) < 2){
+      showNotification("Please supply at least 2 files!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(length(isolate(input$dataMerge_selectInput)) < 2){
+      showNotification("Please order all of your files!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(isolate(input$dataMerge_selectInput)[1] == "*"){
+      showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
+      return(NULL)
+    } else{
+      
+      fa_dataMerge(
+        fastaInputs = isolate(input$dataMerge_input[match(input$dataMerge_selectInput, input$dataMerge_input$name),]$datapath),
+        mergeType = isolate(input$dataMerge_mergeType)
+      )
+    }
+  })
+  
+  ## DATA MERGE - DATA OUTPUT
+  output$dataMerge_output <- DT::renderDataTable(DT::datatable({
+    dataMergeDF()
+  }, filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
+  ))
+  
+  ## DATA MERGE - DATA DOWNLOAD
+  output$dataMerge_download <- downloadHandler(
+    # set filename
+    filename = function(){
+      "dataMerge.csv"
+    },
+    
+    # set file content
+    content = function(file){
+      # format data for output as CSV file
+      write.csv(dataMergeDF()[input[["dataMerge_output_rows_all"]],], file, row.names = FALSE, quote = FALSE)
+    }
+  )
+  
+  ## DATA MERGE - GENERATE SEQUENCE PERSISTENCE PLOT
+  dataMerge_sequencePersistencePlot <- eventReactive(input$dataMerge_start, {
+    if(is.null(isolate(input$dataMerge_input))){
+      return(NULL)
+    } else if(nrow(isolate(input$dataMerge_input)) < 2){
+      return(NULL)
+    } else if(length(isolate(input$dataMerge_selectInput)) < 2){
+      return(NULL)
+    } else if(isolate(input$dataMerge_selectInput)[1] == "*"){
+      return(NULL)
+    } else{
+      fa_dataMerge_seqPersistence(fastaInputs = isolate(input$dataMerge_input[match(input$dataMerge_selectInput, input$dataMerge_input$name),]$datapath))
+    }
+  })
+  
+  ## DATA MERGE - RENDER SEQUENCE PERSISENCE PLOT
+  output$dataMerge_sequencePersistence <- plotly::renderPlotly({
+    if(is.null(dataMerge_sequencePersistencePlot())){
+      return(NULL)
+    } else{
+      dataMerge_sequencePersistencePlot()
+    }
+  })
+  
+  ## DATA MERGE - GENERATE UpSetR PLOT
+  dataMerge_UpSetRPlot <- eventReactive(input$dataMerge_start, {
+    if(is.null(isolate(input$dataMerge_input))){
+      return(NULL)
+    } else if(nrow(isolate(input$dataMerge_input)) < 2){
+      return(NULL)
+    } else if(length(isolate(input$dataMerge_selectInput)) < 2){
+      return(NULL)
+    } else if(isolate(input$dataMerge_selectInput)[1] == "*"){
+      return(NULL)
+    } else{
+      fa_dataMerge_UpSetR(fastaInputs = isolate(input$dataMerge_input$datapath), fastaNames = isolate(input$dataMerge_input$name))
+    }
+  })
+  
+  ## DATA MERGE - RENDER UpSetR PLOT
+  output$dataMerge_UpSetR <- renderPlot({
+    if(is.null(dataMerge_UpSetRPlot())){
+      return(NULL)
+    } else{
+      dataMerge_UpSetRPlot()
     }
   })
   
@@ -593,28 +859,6 @@ server <- function(input, output, session) {
       write.csv(enrichDF()[input[["enrichOutput_rows_all"]],], file, row.names = FALSE, quote = FALSE)
     }
   )
-  
-  ## SEQUENCE ENRICHMENT - GENERATE SEQUENCE PERSISTENCE PLOT
-  enrich_seqPers <- eventReactive(input$seqPersStart, {
-    if(is.null(isolate(input$enrichInput))){
-      showNotification("No files provided!", type = "error", duration = NULL)
-      return(NULL)
-    } else if(nrow(isolate(input$enrichInput)) != 2){
-      showNotification("Supply exactly 2 files!", type = "error", duration = NULL)
-      return(NULL)
-    } else{
-      fa_enrich_seqPersistence(fastaInputs = isolate(input$enrichInput$datapath), minReads = isolate(input$enrich_minReads))
-    }
-  })
-  
-  ## SEQUENCE ENRICHMENT - RENDER SEQUENCE PERSISENCE PLOT
-  output$seqPersOutput <- plotly::renderPlotly({
-    if(is.null(enrich_seqPers())){
-      return(NULL)
-    } else{
-      enrich_seqPers()
-    }
-  })
   
   ## SEQUENCE ENRICHMENT - GENERATE LOG2(ENRICHMENT) HISTOGRAM
   enrich_histogram <- eventReactive(input$fcHistStart, {
@@ -765,12 +1009,14 @@ server <- function(input, output, session) {
     } else if(grepl("[^a-zA-Z0-9,]", gsub("\\s", "", isolate(input$posEnrich_mods)))){
       return(NULL)
     } else{
-      fa_enrich_heatMap(dataPath = isolate(input$posEnrichInput$datapath),
-                        refSeq = isolate(input$posEnrich_refSequence),
-                        modList = isolate(input$posEnrich_mods),
-                        enrichRange = isolate(input$slider_enrichmentRange),
-                        seqType = isolate(input$posEnrich_seqType),
-                        lowCol = isolate(input$lowCol), midCol = isolate(input$midCol), highCol = isolate(input$highCol))
+      fa_enrich_heatMap(
+        dataPath = isolate(input$posEnrichInput$datapath),
+        refSeq = isolate(input$posEnrich_refSequence),
+        modList = isolate(input$posEnrich_mods),
+        enrichRange = isolate(input$slider_enrichmentRange),
+        seqType = isolate(input$posEnrich_seqType),
+        lowCol = isolate(input$lowCol), midCol = isolate(input$midCol), highCol = isolate(input$highCol)
+      )
     }
   })
   
@@ -802,13 +1048,15 @@ server <- function(input, output, session) {
       # capture output
       withCallingHandlers({
         shinyjs::html("clusterTextOutput", "")
-        fa_clusterLED(fastaInput = isolate(input$clusterInput$datapath),
-                      minReads = isolate(input$clusterSlider_minReads),
-                      maxLED = isolate(input$clusterSlider_maxLED),
-                      totalClusters = isolate(input$clusterSlider_totalClusters),
-                      multipleOutputs = ifelse(isolate(input$clusterButton_outputs) == "Yes", TRUE, FALSE),
-                      outputDirectory = isolate(input$clusterInput_directory),
-                      keepNC = ifelse(isolate(input$clusterButton_keepNC) == "Yes", TRUE, FALSE))
+        fa_clusterLED(
+          fastaInput = isolate(input$clusterInput$datapath),
+          minReads = isolate(input$clusterSlider_minReads),
+          maxLED = isolate(input$clusterSlider_maxLED),
+          totalClusters = isolate(input$clusterSlider_totalClusters),
+          multipleOutputs = ifelse(isolate(input$clusterButton_outputs) == "Yes", TRUE, FALSE),
+          outputDirectory = isolate(input$clusterInput_directory),
+          keepNC = ifelse(isolate(input$clusterButton_keepNC) == "Yes", TRUE, FALSE)
+        )
       },
       # redirect output to text in UI
       message = function(m){
@@ -845,11 +1093,17 @@ server <- function(input, output, session) {
     content = function(file){
       # format data for output as FASTA file
       if(isolate(input$clusterDownloadType) == "FASTA"){
-        write.table(fa_formatOutput(outputData = clusterDF()[input[["clusterOutput_rows_all"]],]), file,
-                    quote = FALSE, row.names = FALSE, col.names = FALSE)
+        write.table(
+          fa_formatOutput(outputData = clusterDF()[input[["clusterOutput_rows_all"]],]),
+          file,
+          quote = FALSE, row.names = FALSE, col.names = FALSE
+        )
       }else{
-        write.csv(clusterDF()[input[["clusterOutput_rows_all"]],], file, 
-                  quote = FALSE, row.names = FALSE)
+        write.csv(
+          clusterDF()[input[["clusterOutput_rows_all"]],],
+          file, 
+          quote = FALSE, row.names = FALSE
+        )
       }
     }
   )
@@ -936,9 +1190,11 @@ server <- function(input, output, session) {
       showNotification("Please generate a table before generating this plot!", type = "error", duration = NULL)
       return(NULL)
     } else{
-      fa_clusterDiversity_kmerPCA(clusterFile = isolate(input$clusterDiversityInput$datapath),
-                                  kmerSize = as.numeric(isolate(input$kmerPCAButton_k)),
-                                  clustersToPlot = isolate(input$kmerPCA_clusters))
+      fa_clusterDiversity_kmerPCA(
+        clusterFile = isolate(input$clusterDiversityInput$datapath),
+        kmerSize = as.numeric(isolate(input$kmerPCAButton_k)),
+        clustersToPlot = isolate(input$kmerPCA_clusters)
+      )
     }
   })
   
