@@ -90,8 +90,12 @@ server <- function(input, output, session) {
   
   ## COUNT - DATA GENERATION
   countDF <- eventReactive(input$countStart, {
+    
     if(is.null(isolate(input$countInput))){
       showNotification("No file or link provided!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(!(toupper(tools::file_ext(isolate(input$countInput$datapath))) %in% c("FQ", "FA", "FASTQ", "FASTA"))){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       # capture output
@@ -222,6 +226,9 @@ server <- function(input, output, session) {
     } else if(grepl("[^a-zA-Z0-9,]", gsub("\\s", "", isolate(input$translateInput_changes)))){
       showNotification("Modifications must be alphanumeric!", type = "error", duration = NULL)
       return(NULL)
+    } else if(tools::file_ext(isolate(input$translateInput$datapath)) != "fasta"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
+      return(NULL)
     } else{
       fa_translate(
         fastaInput = isolate(input$translateInput$datapath),
@@ -329,7 +336,11 @@ server <- function(input, output, session) {
     } else if(grepl("[^a-zA-Z0-9]", gsub(",| ", "", isolate(input$motifInput_search)))){
       showNotification("Pattern list must be alphanumeric!", type = "error", duration = NULL)
       return(NULL)
-    }else{
+    } else if(tools::file_ext(isolate(input$motifSearchInput$datapath)) != "fasta"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
+      return(NULL)
+    } else{
+      
       ## function call
       fa_motifSearch(
         fastaInput = isolate(input$motifSearchInput$datapath),
@@ -419,6 +430,17 @@ server <- function(input, output, session) {
       return(NULL)
     } else if(length(unlist(strsplit(isolate(input$motifInput_query), split = "\n"))) != length(unlist(strsplit(isolate(input$motifInput_alias), split = "\n"))) & isolate(input$motifInput_alias) != ""){
       showNotification("When aliases are provided, there must be one for each query!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(
+      ifelse(
+        sum(
+          ifelse(tools::file_ext(isolate(input$motifTrackerInput$datapath)) == "fasta", TRUE, FALSE)) != nrow(isolate(input$motifTrackerInput)
+          ),
+        TRUE,
+        FALSE
+      )
+    ){
+      showNotification("Please confirm that all files have the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       
@@ -518,6 +540,9 @@ server <- function(input, output, session) {
     if(is.null(isolate(input$motifDiscovery_input))){
       showNotification("No file provided!", type = "error", duration = NULL)
       return(NULL)
+    } else if(tools::file_ext(isolate(input$motifDiscovery_input$datapath)) != "fasta"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
+      return(NULL)
     } else{
       fa_fsbc_motifDiscovery(
         fastaInput = isolate(input$motifDiscovery_input$datapath),
@@ -588,6 +613,9 @@ server <- function(input, output, session) {
       return(NULL)
     } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$querySequence)))){
       showNotification("Query sequence must be alphanumeric!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(tools::file_ext(isolate(input$distanceInput$datapath)) != "fasta"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       fa_distance(
@@ -660,62 +688,62 @@ server <- function(input, output, session) {
     }
   })
   
-  ## MUTATION NETWORK - DATA GENERATION
-  mutationNetworkDF <- eventReactive(input$mutationNetwork_start, {
-    if(is.null(isolate(input$mutationNetwork_input))){
-      showNotification("No file provided!", type = "error", duration = NULL)
-      return(NULL)
-    } else if(isolate(input$mutationNetwork_startNode) == ""){
-      showNotification("Must supply valid start sequence!", type = "error", duration = NULL)
-      return(NULL)
-    } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$mutationNetwork_startNode)))){
-      showNotification("Start sequence must be alphanumeric!", type = "error", duration = NULL)
-      return(NULL)
-    } else if(isolate(input$mutationNetwork_endNode) == ""){
-      showNotification("Must supply valid end sequence!", type = "error", duration = NULL)
-      return(NULL)
-    } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$mutationNetwork_endNode)))){
-      showNotification("End sequence must be alphanumeric!", type = "error", duration = NULL)
-      return(NULL)
-    } else{
-      fa_mutationalIntermediates(
-        fastaInput = isolate(input$mutationNetwork_input$datapath),
-        startNode = isolate(input$mutationNetwork_startNode),
-        endNode = isolate(input$mutationNetwork_endNode),
-        maxCost = isolate(input$mutationNetwork_maxCost)
-      )
-    }
-  })
-  
-  ## MUTATION NETWORK - DATA OUTPUT; this is a data.table if a path was found or a character string if not
-  output$mutationNetwork_DT_output <- DT::renderDataTable(DT::datatable({
-    if(is.data.frame(mutationNetworkDF())){
-      mutationNetworkDF()
-    }
-  },
-  filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
-  ))
-  
-  output$mutationNetwork_text_output <- renderUI(
-    if(!is.data.frame(mutationNetworkDF())){
-      mutationNetworkDF()
-    }
-  )
-  
-  ## MUTATION NETWORK DOWNLOAD
-  output$mutationNetwork_download <- downloadHandler(
-    # set filename
-    filename = function(){
-      "mutationNetwork.csv"
-    },
-    
-    # set file content
-    content = function(file){
-      
-      # format data for output as CSV file
-      write.csv(mutationNetworkDF(), file, row.names = FALSE, quote = TRUE)
-    }
-  )
+  # ## MUTATION NETWORK - DATA GENERATION
+  # mutationNetworkDF <- eventReactive(input$mutationNetwork_start, {
+  #   if(is.null(isolate(input$mutationNetwork_input))){
+  #     showNotification("No file provided!", type = "error", duration = NULL)
+  #     return(NULL)
+  #   } else if(isolate(input$mutationNetwork_startNode) == ""){
+  #     showNotification("Must supply valid start sequence!", type = "error", duration = NULL)
+  #     return(NULL)
+  #   } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$mutationNetwork_startNode)))){
+  #     showNotification("Start sequence must be alphanumeric!", type = "error", duration = NULL)
+  #     return(NULL)
+  #   } else if(isolate(input$mutationNetwork_endNode) == ""){
+  #     showNotification("Must supply valid end sequence!", type = "error", duration = NULL)
+  #     return(NULL)
+  #   } else if(grepl("[^a-zA-Z0-9]", gsub(" ", "", isolate(input$mutationNetwork_endNode)))){
+  #     showNotification("End sequence must be alphanumeric!", type = "error", duration = NULL)
+  #     return(NULL)
+  #   } else{
+  #     fa_mutationalIntermediates(
+  #       fastaInput = isolate(input$mutationNetwork_input$datapath),
+  #       startNode = isolate(input$mutationNetwork_startNode),
+  #       endNode = isolate(input$mutationNetwork_endNode),
+  #       maxCost = isolate(input$mutationNetwork_maxCost)
+  #     )
+  #   }
+  # })
+  # 
+  # ## MUTATION NETWORK - DATA OUTPUT; this is a data.table if a path was found or a character string if not
+  # output$mutationNetwork_DT_output <- DT::renderDataTable(DT::datatable({
+  #   if(is.data.frame(mutationNetworkDF())){
+  #     mutationNetworkDF()
+  #   }
+  # },
+  # filter = list(position = "top", plain = TRUE, clear = FALSE), rownames = FALSE
+  # ))
+  # 
+  # output$mutationNetwork_text_output <- renderUI(
+  #   if(!is.data.frame(mutationNetworkDF())){
+  #     mutationNetworkDF()
+  #   }
+  # )
+  # 
+  # ## MUTATION NETWORK DOWNLOAD
+  # output$mutationNetwork_download <- downloadHandler(
+  #   # set filename
+  #   filename = function(){
+  #     "mutationNetwork.csv"
+  #   },
+  #   
+  #   # set file content
+  #   content = function(file){
+  #     
+  #     # format data for output as CSV file
+  #     write.csv(mutationNetworkDF(), file, row.names = FALSE, quote = TRUE)
+  #   }
+  # )
   
   ## DATA MERGE - UPDATE FILE SELECTIONS
   observe({
@@ -735,6 +763,17 @@ server <- function(input, output, session) {
       return(NULL)
     } else if(isolate(input$dataMerge_selectInput)[1] == "*"){
       showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
+      return(NULL)
+    } else if(
+      ifelse(
+        sum(
+          ifelse(tools::file_ext(isolate(input$dataMerge_input$datapath)) == "fasta", TRUE, FALSE)) != nrow(isolate(input$dataMerge_input)
+          ),
+        TRUE,
+        FALSE
+      )
+    ){
+      showNotification("Please confirm that all files have the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       
@@ -831,6 +870,12 @@ server <- function(input, output, session) {
       return(NULL)
     } else if(isolate(input$enrich_selectInput)[1] == "*"){
       showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
+      return(NULL)
+    } else if(tools::file_ext(isolate(input$translateInput$datapath[1])) != "fasta"){
+      showNotification("File 1 does not have the correct extension!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(tools::file_ext(isolate(input$translateInput$datapath[2])) != "fasta"){
+      showNotification("File 2 does not have the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       fa_enrich(
@@ -976,6 +1021,9 @@ server <- function(input, output, session) {
     } else if(isolate(input$posEnrich_refSequence) == ""){
       showNotification("No reference sequence provided!", type = "error", duration = NULL)
       return(NULL)
+    } else if(tools::file_ext(isolate(input$posEnrichInput$datapath)) != "csv"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
+      return(NULL)
     } else{
       fa_enrich_avgSequenceBar(
         dataPath = isolate(input$posEnrichInput$datapath),
@@ -1007,6 +1055,9 @@ server <- function(input, output, session) {
     } else if(isolate(input$posEnrich_refSequence) == ""){
       return(NULL)
     } else if(grepl("[^a-zA-Z0-9,]", gsub("\\s", "", isolate(input$posEnrich_mods)))){
+      return(NULL)
+    } else if(tools::file_ext(isolate(input$posEnrichInput$datapath)) != "csv"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       fa_enrich_heatMap(
@@ -1042,6 +1093,9 @@ server <- function(input, output, session) {
       return(NULL)
     } else if(isolate(input$clusterButton_outputs) == "Yes" & !dir.exists(isolate(input$clusterInput_directory))){
       showNotification("Directory must already exist!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(tools::file_ext(isolate(input$clusterInput$datapath)) != "fasta"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       
@@ -1115,6 +1169,9 @@ server <- function(input, output, session) {
       return(NULL)
     } else if(lengths(strsplit(readLines(isolate(input$clusterDiversityInput$datapath), n = 1), split = "-")) != 6){
       showNotification("Please provided a file from FASTAptameR-Cluster!", type = "error", duration = NULL)
+      return(NULL)
+    } else if(tools::file_ext(isolate(input$clusterDiversityInput$datapath)) != "fasta"){
+      showNotification("Please supply a file with the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
       fa_clusterDiversity(clusterFASTA = isolate(input$clusterDiversityInput$datapath))
@@ -1222,6 +1279,17 @@ server <- function(input, output, session) {
     } else if(length(isolate(input$clusterEnrich_selectInput)) == 1 & isolate(input$clusterEnrich_selectInput[1]) == "*"){
       showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
       return(NULL)
+    } else if(
+      ifelse(
+        sum(
+          ifelse(tools::file_ext(isolate(input$clusterEnrichInput$datapath)) == "csv", TRUE, FALSE)) != nrow(isolate(input$clusterEnrichInput)
+          ),
+        TRUE,
+        FALSE
+      )
+    ){
+      showNotification("Please confirm that all files have the correct extension!", type = "error", duration = NULL)
+      return(NULL)
     } else{
       fa_clusterEnrich(
         clusterCSVs = isolate(input$clusterEnrichInput[match(input$clusterEnrich_selectInput, input$clusterEnrichInput$name),]$datapath),
@@ -1265,13 +1333,19 @@ server <- function(input, output, session) {
   
   ## CLUSTER ENRICH - ENRICH DOWNLOAD
   output$clusterEnrichDownload_enrich <- downloadHandler(
+    
     # set filename
     filename = "clusterEnrich_enrich.csv",
     
     # set file content
     content = function(file){
+      
       # format data for output as CSV file
-      write.csv(clusterEnrichOutput_enrichDF()[input[["clusterEnrichOutput_enrichDF_rows_all"]],], file, row.names = FALSE, quote = FALSE)
+      write.csv(
+        clusterEnrichOutput_enrichDF()[input[["clusterEnrichOutput_enrichDF_rows_all"]],],
+        file,
+        row.names = FALSE, quote = FALSE
+      )
     }
   )
   
