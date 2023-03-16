@@ -79,5 +79,5 @@ aboutTab <- tabPanel(
   ),
   
   # update section
-  h3("The most recent version of FA2 is from Aug. 02, 2022.")
+  h3("The most recent version of FA2 is from 15 March 2022.")
 )
