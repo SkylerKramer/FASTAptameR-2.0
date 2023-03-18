@@ -871,10 +871,10 @@ server <- function(input, output, session) {
     } else if(isolate(input$enrich_selectInput)[1] == "*"){
       showNotification("Asterisk is a placeholder and not a valid file ordering!", duration = NULL)
       return(NULL)
-    } else if(tools::file_ext(isolate(input$translateInput$datapath[1])) != "fasta"){
+    } else if(tools::file_ext(isolate(input$enrichInput$datapath[1])) != "fasta"){
       showNotification("File 1 does not have the correct extension!", type = "error", duration = NULL)
       return(NULL)
-    } else if(tools::file_ext(isolate(input$translateInput$datapath[2])) != "fasta"){
+    } else if(tools::file_ext(isolate(input$enrichInput$datapath[2])) != "fasta"){
       showNotification("File 2 does not have the correct extension!", type = "error", duration = NULL)
       return(NULL)
     } else{
